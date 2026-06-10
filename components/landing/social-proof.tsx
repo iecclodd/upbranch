@@ -1,25 +1,19 @@
-const badges = [
-  "MCP Gateway",
-  "Policy Engine",
-  "Human Approvals",
-  "Credential Vault",
-  "Audit Logs",
-];
+const tools = ["GitHub", "Slack", "Stripe", "Gmail", "Notion", "Linear", "Postgres"];
 
 export function SocialProof() {
   return (
-    <section className="border-b border-[#211327]/10 px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <p className="max-w-xl text-sm font-medium text-[#211327]">
-          Built for AI builders connecting agents to real tools.
+    <section className="px-4 py-16 sm:px-6">
+      <div className="mx-auto max-w-5xl text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          Gate every tool your agents already touch
         </p>
-        <div className="flex flex-wrap gap-2">
-          {badges.map((badge) => (
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+          {tools.map((tool) => (
             <span
-              key={badge}
-              className="rounded-md border border-[#211327]/12 bg-white/70 px-3 py-1.5 text-sm text-[#4B3C52]"
+              key={tool}
+              className="text-lg font-semibold tracking-tight text-foreground/35 transition-colors hover:text-foreground/60"
             >
-              {badge}
+              {tool}
             </span>
           ))}
         </div>

@@ -3,26 +3,26 @@
 @tailwind utilities;
 
 :root {
-  --background: 32 33% 97%;
-  --foreground: 285 34% 11%;
-  --card: 32 33% 99%;
-  --card-foreground: 285 34% 11%;
-  --popover: 32 33% 99%;
-  --popover-foreground: 285 34% 11%;
+  --background: 270 50% 99%;
+  --foreground: 273 36% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 273 36% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 273 36% 10%;
   --primary: 263 65% 52%;
-  --primary-foreground: 32 33% 97%;
-  --secondary: 284 34% 18%;
-  --secondary-foreground: 32 33% 97%;
-  --muted: 35 25% 92%;
-  --muted-foreground: 220 9% 46%;
+  --primary-foreground: 270 50% 99%;
+  --secondary: 273 30% 16%;
+  --secondary-foreground: 270 50% 99%;
+  --muted: 266 30% 95%;
+  --muted-foreground: 270 8% 44%;
   --accent: 330 75% 64%;
-  --accent-foreground: 285 34% 11%;
+  --accent-foreground: 273 36% 10%;
   --destructive: 0 70% 50%;
-  --destructive-foreground: 32 33% 97%;
-  --border: 285 20% 88%;
-  --input: 285 20% 88%;
+  --destructive-foreground: 270 50% 99%;
+  --border: 270 18% 89%;
+  --input: 270 18% 89%;
   --ring: 263 65% 52%;
-  --radius: 0.6rem;
+  --radius: 1rem;
 }
 
 * {
@@ -35,12 +35,13 @@ html {
 
 body {
   min-height: 100vh;
-  background: #faf8f5;
-  color: #211327;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "ss01" on, "cv01" on;
 }
 
 ::selection {
-  background: rgba(109, 53, 212, 0.18);
+  background: rgba(109, 53, 212, 0.2);
 }
 
 .text-balance {

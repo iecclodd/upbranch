@@ -1,35 +1,32 @@
 import Image from "next/image";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { cn } from "@/lib/utils";
 
 interface LogoProps {
   dark?: boolean;
+  className?: string;
 }
 
-export function Logo({ dark = false }: LogoProps) {
-  const fileName = dark ? "polyshield-logo-white.png" : "polyshield-logo.png";
-  const hasLogo = existsSync(join(process.cwd(), "public", fileName));
-
+export function Logo({ dark = false, className }: LogoProps) {
   return (
-    <div className="flex items-center gap-2.5" aria-label="Polyshield">
-      <div className="relative h-8 w-8 overflow-hidden rounded-lg border border-[#211327]/10 bg-white">
-        {hasLogo ? (
-          <Image
-            src={`/${fileName}`}
-            alt=""
-            fill
-            sizes="32px"
-            className="object-contain p-1.5"
-          />
-        ) : (
-          <span className="absolute inset-0 grid place-items-center text-sm font-semibold text-[#6D35D4]">
-            P
-          </span>
+    <span
+      className={cn("flex items-center gap-2", className)}
+      aria-label="Polyshield"
+    >
+      <Image
+        src="/polyshield_logo_nobg.png"
+        alt=""
+        width={30}
+        height={30}
+        priority
+      />
+      <span
+        className={cn(
+          "text-[17px] font-bold tracking-tight",
+          dark ? "text-white" : "text-foreground",
         )}
-      </div>
-      <span className={dark ? "font-semibold text-white" : "font-semibold text-[#211327]"}>
+      >
         Polyshield
       </span>
-    </div>
+    </span>
   );
 }

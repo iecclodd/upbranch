@@ -1,16 +1,19 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/neon-button";
+import { FormEvent, useId, useState } from "react";
+import { ArrowRight, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface WaitlistFormProps {
-  compact?: boolean;
+  tone?: "light" | "dark";
+  className?: string;
 }
 
-export function WaitlistForm({ compact = false }: WaitlistFormProps) {
+export function WaitlistForm({ tone = "light", className }: WaitlistFormProps) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const inputId = useId();
+  const dark = tone === "dark";
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -20,41 +23,64 @@ export function WaitlistForm({ compact = false }: WaitlistFormProps) {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className={compact ? "flex w-full gap-2 sm:w-auto" : "flex w-full max-w-md flex-col gap-3 sm:flex-row"}
-    >
-      <label className="sr-only" htmlFor={compact ? "waitlist-compact" : "waitlist-email"}>
-        Email address
-      </label>
-      <input
-        id={compact ? "waitlist-compact" : "waitlist-email"}
-        type="email"
-        required
-        value={email}
-        onChange={(event) => {
-          setEmail(event.target.value);
-          setSubmitted(false);
-        }}
-        placeholder="you@company.com"
-        className="min-h-11 flex-1 rounded-lg border border-[#211327]/15 bg-white/80 px-3.5 text-sm text-[#211327] outline-none transition focus:border-[#6D35D4] focus:ring-4 focus:ring-[#6D35D4]/10"
-      />
-      <Button
-        type="submit"
-        variant="solid"
-        neon={false}
-        className="mx-0 min-h-11 rounded-lg border-[#6D35D4] bg-[#6D35D4] px-4 py-2 text-sm font-medium text-white hover:border-[#211327]/20 hover:bg-[#5B2AB6]"
+    <div className={cn("w-full max-w-md", className)}>
+      <form
+        onSubmit={onSubmit}
+        className={cn(
+          "flex items-center gap-2 rounded-full p-1.5 pl-5 transition",
+          dark
+            ? "border border-white/15 bg-white/10 backdrop-blur focus-within:border-white/30"
+            : "border border-ink/10 bg-white/85 shadow-chip backdrop-blur focus-within:border-violet/40 focus-within:ring-4 focus-within:ring-violet/10",
+        )}
       >
-        <span className="flex items-center justify-center gap-2">
-          Join waitlist
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </span>
-      </Button>
+        <label className="sr-only" htmlFor={inputId}>
+          Email address
+        </label>
+        <input
+          id={inputId}
+          type="email"
+          required
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setSubmitted(false);
+          }}
+          placeholder="you@company.com"
+          className={cn(
+            "h-10 w-full min-w-0 flex-1 bg-transparent text-sm outline-none",
+            dark
+              ? "text-white placeholder:text-white/50"
+              : "text-foreground placeholder:text-muted-foreground",
+          )}
+        />
+        <button
+          type="submit"
+          className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-violet px-5 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-violet-deep"
+        >
+          {submitted ? (
+            <>
+              You&apos;re in
+              <Check className="h-4 w-4" aria-hidden="true" />
+            </>
+          ) : (
+            <>
+              Join waitlist
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </>
+          )}
+        </button>
+      </form>
       {submitted ? (
-        <p className="self-center text-sm text-[#6B7280]" role="status">
-          Logged locally for now.
+        <p
+          role="status"
+          className={cn(
+            "mt-3 text-center text-sm",
+            dark ? "text-white/70" : "text-muted-foreground",
+          )}
+        >
+          Thanks — we&apos;ll reach out when your spot opens up.
         </p>
       ) : null}
-    </form>
+    </div>
   );
 }

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "polyshield-dev",
+      "runtimeExecutable": "C:\\Users\\Eric Qin\\AppData\\Roaming\\fnm\\node-versions\\v22.22.2\\installation\\npm.cmd",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    }
+  ]
+}
