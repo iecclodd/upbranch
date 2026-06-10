@@ -9,19 +9,19 @@ interface LogoProps {
 export function Logo({ dark = false, className }: LogoProps) {
   return (
     <span
-      className={cn("flex items-center gap-2", className)}
+      className={cn("flex items-center gap-1.5", className)}
       aria-label="Polyshield"
     >
       <Image
         src="/polyshield_logo_nobg.png"
         alt=""
-        width={30}
-        height={30}
+        width={38}
+        height={38}
         priority
       />
       <span
         className={cn(
-          "text-[17px] font-bold tracking-tight",
+          "text-lg font-bold tracking-tight transition-colors",
           dark ? "text-white" : "text-foreground",
         )}
       >

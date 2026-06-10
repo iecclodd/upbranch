@@ -155,3 +155,18 @@
   border-radius: inherit;
   z-index: 1;
 }
+
+/* Browsers without conic-gradient masks: drop the hover glow, keep the card. */
+@supports not (mask-image: conic-gradient(black, white)) {
+  .border-glow-card::before,
+  .border-glow-card > .edge-light {
+    display: none;
+  }
+}
+
+/* The edge fill additionally needs mask-composite. */
+@supports not ((mask-composite: subtract) or (-webkit-mask-composite: source-out)) {
+  .border-glow-card::after {
+    display: none;
+  }
+}

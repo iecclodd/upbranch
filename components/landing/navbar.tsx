@@ -34,14 +34,19 @@ export function Navbar() {
         )}
       >
         <a href="#top" className="shrink-0">
-          <Logo />
+          <Logo dark={!scrolled} />
         </a>
         <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 md:flex">
           {links.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-foreground/65 transition-colors hover:text-foreground"
+              className={cn(
+                "text-sm font-medium transition-colors",
+                scrolled
+                  ? "text-foreground/65 hover:text-foreground"
+                  : "text-white/80 hover:text-white",
+              )}
             >
               {link.label}
             </a>
@@ -49,7 +54,12 @@ export function Navbar() {
         </div>
         <a
           href="#waitlist"
-          className="rounded-full bg-ink px-[18px] py-2 text-sm font-semibold text-white transition-all hover:scale-[1.03] hover:bg-plum"
+          className={cn(
+            "rounded-full px-[18px] py-2 text-sm font-semibold transition-all hover:scale-[1.03]",
+            scrolled
+              ? "bg-ink text-white hover:bg-plum"
+              : "bg-white text-ink hover:bg-white/90",
+          )}
         >
           Join waitlist
         </a>

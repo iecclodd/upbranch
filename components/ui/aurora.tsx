@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Renderer, Program, Mesh, Color, Triangle } from "ogl";
 
 const VERT = `#version 300 es
@@ -129,16 +129,32 @@ export function Aurora(props: AuroraProps) {
   propsRef.current = props;
 
   const ctnDom = useRef<HTMLDivElement>(null);
+  const [fallback, setFallback] = useState(false);
 
   useEffect(() => {
     const ctn = ctnDom.current;
     if (!ctn) return;
 
-    const renderer = new Renderer({
-      alpha: true,
-      premultipliedAlpha: true,
-      antialias: true,
-    });
+    // Static gradient instead of WebGL when the user prefers reduced motion.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setFallback(true);
+      return;
+    }
+
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({
+        alpha: true,
+        premultipliedAlpha: true,
+        antialias: true,
+      });
+      if (!renderer.gl) throw new Error("no context");
+    } catch {
+      // WebGL unavailable (old GPU, disabled acceleration, strict privacy
+      // settings, VM/RDP) — degrade to the CSS gradient fallback.
+      setFallback(true);
+      return;
+    }
     const gl = renderer.gl;
     gl.clearColor(0, 0, 0, 0);
     gl.enable(gl.BLEND);
@@ -212,6 +228,24 @@ export function Aurora(props: AuroraProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amplitude]);
+
+  if (fallback) {
+    const [c1, c2, c3] = colorStops;
+    return (
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none h-full w-full ${className}`}
+        style={{
+          background: [
+            `radial-gradient(55% 75% at 15% 0%, ${c1}99, transparent 65%)`,
+            `radial-gradient(50% 65% at 50% 0%, ${c2}80, transparent 62%)`,
+            `radial-gradient(55% 75% at 85% 0%, ${c3}99, transparent 65%)`,
+          ].join(", "),
+          filter: "blur(48px)",
+        }}
+      />
+    );
+  }
 
   return (
     <div
