@@ -1,107 +1,91 @@
-"use client";
-
-import { useMemo } from "react";
-import { useDashboard } from "@/components/dashboard/dashboard-provider";
 import {
+  currentProjectId,
+  listPolicies,
+  listServers,
+} from "@/lib/db/repository";
+import {
+  EmptyState,
   GlassCard,
   PageHeader,
-  Pill,
+  StatusBadge,
   decisionTone,
 } from "@/components/dashboard/primitives";
+import { PolicySelect } from "@/components/dashboard/interactive";
 import type { PolicyDecision } from "@/lib/dashboard/types";
 
-const DECISIONS: PolicyDecision[] = ["allow", "require_approval", "deny"];
+const summary: Record<PolicyDecision, string> = {
+  allow: "Forwarded to the source MCP immediately. Logged.",
+  require_approval: "Held in the queue until a human decides. Logged.",
+  deny: "Never forwarded. The agent receives a denial. Logged.",
+};
 
-export default function PoliciesPage() {
-  const { state, setPolicyDecision } = useDashboard();
-
-  const serverNames = useMemo(
-    () => new Map(state.servers.map((s) => [s.id, s.name])),
-    [state.servers],
-  );
+export default async function PoliciesPage() {
+  const projectId = await currentProjectId();
+  const [servers, policies] = await Promise.all([
+    listServers(projectId),
+    listPolicies(projectId),
+  ]);
+  const serverNames = Object.fromEntries(servers.map((s) => [s.id, s.name]));
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Policies"
-        description="Deterministic rules evaluated on every tool call. Tools without an explicit policy default to allow — add a policy to tighten them."
+        description="Deterministic rules evaluated on every tool call. Tools without a policy default to allow."
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        {DECISIONS.map((decision) => (
+        {(Object.keys(summary) as PolicyDecision[]).map((decision) => (
           <GlassCard key={decision} className="p-5">
-            <Pill label={decision} tone={decisionTone(decision)} />
+            <StatusBadge label={decision} tone={decisionTone(decision)} />
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              {decision === "allow" &&
-                "Forwarded to the source MCP immediately. Logged."}
-              {decision === "require_approval" &&
-                "Held in the Approval Queue until a human decides. Logged."}
-              {decision === "deny" &&
-                "Never forwarded. The agent receives a denial. Logged."}
+              {summary[decision]}
             </p>
           </GlassCard>
         ))}
       </div>
 
-      <GlassCard className="overflow-x-auto">
-        <table className="w-full min-w-[820px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-ink/5 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-              <th className="px-6 py-4 font-semibold">Tool</th>
-              <th className="px-4 py-4 font-semibold">Source MCP</th>
-              <th className="px-4 py-4 font-semibold">Decision</th>
-              <th className="px-4 py-4 font-semibold">Condition</th>
-              <th className="px-6 py-4 font-semibold">Description</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-ink/5">
-            {state.policies.map((policy) => (
-              <tr
+      {policies.length === 0 ? (
+        <EmptyState
+          title="No policies yet"
+          body="Connect a server — risky tools get auto-gated, and you can tune every decision here."
+        />
+      ) : (
+        <GlassCard className="overflow-hidden">
+          <div className="hidden grid-cols-[1.4fr_1fr_auto_1.3fr] gap-4 border-b border-ink/5 px-6 py-3.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
+            <span>Tool</span>
+            <span>Source MCP</span>
+            <span>Decision</span>
+            <span>Description</span>
+          </div>
+          <div className="divide-y divide-ink/5">
+            {policies.map((policy) => (
+              <div
                 key={policy.id}
-                className="transition-colors hover:bg-violet/[0.03]"
+                className="grid grid-cols-1 gap-3 px-6 py-4 transition-colors hover:bg-violet/[0.03] md:grid-cols-[1.4fr_1fr_auto_1.3fr] md:items-center md:gap-4"
               >
-                <td className="px-6 py-3.5 font-mono text-[13px] font-semibold text-foreground">
+                <div className="font-mono text-[13px] font-semibold text-foreground">
                   {policy.exposedTool}
-                </td>
-                <td className="px-4 py-3.5 text-foreground/80">
-                  {serverNames.get(policy.serverId)}
-                </td>
-                <td className="px-4 py-3.5">
-                  <select
-                    value={policy.decision}
-                    onChange={(e) =>
-                      setPolicyDecision(
-                        policy.id,
-                        e.target.value as PolicyDecision,
-                      )
-                    }
-                    aria-label={`Decision for ${policy.exposedTool}`}
-                    className="rounded-lg border border-ink/10 bg-white px-2.5 py-1.5 text-sm font-medium text-foreground outline-none transition focus:border-violet/40 focus:ring-4 focus:ring-violet/10"
-                  >
-                    {DECISIONS.map((d) => (
-                      <option key={d} value={d}>
-                        {d.replaceAll("_", " ")}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-4 py-3.5">
                   {policy.condition ? (
-                    <code className="rounded bg-ink/5 px-2 py-1 font-mono text-xs text-foreground/80">
+                    <span className="ml-2 rounded bg-ink/[0.06] px-1.5 py-0.5 text-xs font-normal text-foreground/70">
                       {policy.condition}
-                    </code>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="max-w-sm px-6 py-3.5 text-muted-foreground">
-                  {policy.description}
-                </td>
-              </tr>
+                    </span>
+                  ) : null}
+                </div>
+                <div className="text-sm text-foreground/80">
+                  {serverNames[policy.serverId ?? ""] ?? "—"}
+                </div>
+                <PolicySelect
+                  policyId={policy.id}
+                  decision={policy.decision}
+                  label={policy.exposedTool}
+                />
+                <div className="text-sm text-muted-foreground">{policy.description}</div>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </GlassCard>
+          </div>
+        </GlassCard>
+      )}
     </div>
   );
 }

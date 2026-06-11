@@ -52,17 +52,30 @@ export function Navbar() {
             </a>
           ))}
         </div>
-        <a
-          href="#waitlist"
-          className={cn(
-            "rounded-full px-[18px] py-2 text-sm font-semibold transition-all hover:scale-[1.03]",
-            scrolled
-              ? "bg-ink text-white hover:bg-plum"
-              : "bg-white text-ink hover:bg-white/90",
-          )}
-        >
-          Join waitlist
-        </a>
+        <div className="flex items-center gap-1.5">
+          <a
+            href="/signin"
+            className={cn(
+              "rounded-full px-3.5 py-2 text-sm font-semibold transition-colors",
+              scrolled
+                ? "text-foreground/70 hover:text-foreground"
+                : "text-white/80 hover:text-white",
+            )}
+          >
+            Sign in
+          </a>
+          <a
+            href="#waitlist"
+            className={cn(
+              "rounded-full px-[18px] py-2 text-sm font-semibold transition-all hover:scale-[1.03]",
+              scrolled
+                ? "bg-ink text-white hover:bg-plum"
+                : "bg-white text-ink hover:bg-white/90",
+            )}
+          >
+            Join waitlist
+          </a>
+        </div>
       </nav>
     </header>
   );

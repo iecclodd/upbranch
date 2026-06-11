@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import {
   ArrowRight,
@@ -11,15 +9,25 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo } from "react";
-import { useDashboard } from "@/components/dashboard/dashboard-provider";
+import { getProfile } from "@/lib/auth/session";
+import {
+  currentProjectId,
+  getUsage,
+  listApprovals,
+  listAudit,
+  listPolicies,
+  listServers,
+  listTools,
+} from "@/lib/db/repository";
 import {
   GlassCard,
   PageHeader,
-  Pill,
+  StatusBadge,
   TimeAgo,
   statusTone,
 } from "@/components/dashboard/primitives";
+import { ApprovalActions } from "@/components/dashboard/interactive";
+import { PLAN_LIMITS, type Plan, type UsageSnapshot } from "@/lib/dashboard/types";
 
 function StatCard({
   label,
@@ -40,7 +48,7 @@ function StatCard({
             <Icon className="h-4 w-4 text-violet" aria-hidden="true" />
           </span>
           <ArrowRight
-            className="h-4 w-4 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground"
+            className="h-4 w-4 text-transparent transition-colors group-hover:text-muted-foreground"
             aria-hidden="true"
           />
         </div>
@@ -53,164 +61,118 @@ function StatCard({
   );
 }
 
-function ArchitectureStrip({ serverCount }: { serverCount: number }) {
-  const nodes = [
-    { title: "AI Agent", caption: "sees one MCP server" },
-    { title: "Polyshield Gateway", caption: "policy · approvals · vault · logs" },
-    { title: `${serverCount} connected MCPs`, caption: "raw tools stay downstream" },
-  ];
+function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const unlimited = !Number.isFinite(limit);
+  const pct = unlimited ? 0 : Math.min(100, (used / limit) * 100);
+  const over = !unlimited && used >= limit;
   return (
-    <GlassCard className="p-5">
-      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-        {nodes.map((node, index) => (
-          <div key={node.title} className="flex flex-1 items-center gap-3">
-            <div
-              className={
-                index === 1
-                  ? "flex-1 rounded-xl bg-ink px-4 py-3 text-center"
-                  : "flex-1 rounded-xl border border-ink/10 bg-white px-4 py-3 text-center"
-              }
-            >
-              <p
-                className={
-                  index === 1
-                    ? "text-sm font-semibold text-white"
-                    : "text-sm font-semibold text-foreground"
-                }
-              >
-                {node.title}
-              </p>
-              <p
-                className={
-                  index === 1
-                    ? "mt-0.5 text-xs text-lavender"
-                    : "mt-0.5 text-xs text-muted-foreground"
-                }
-              >
-                {node.caption}
-              </p>
-            </div>
-            {index < nodes.length - 1 ? (
-              <ArrowRight
-                className="hidden h-4 w-4 shrink-0 text-violet sm:block"
-                aria-hidden="true"
-              />
-            ) : null}
-          </div>
-        ))}
+    <div>
+      <div className="flex items-baseline justify-between text-sm">
+        <span className="text-foreground/80">{label}</span>
+        <span className="font-mono text-xs text-muted-foreground">
+          {used} / {unlimited ? "∞" : limit}
+        </span>
       </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/[0.06]">
+        <div
+          className={over ? "h-full rounded-full bg-rose-500" : "h-full rounded-full bg-violet"}
+          style={{ width: unlimited ? "8%" : `${Math.max(pct, 4)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function UsageCard({ plan, usage }: { plan: Plan; usage: UsageSnapshot }) {
+  const limits = PLAN_LIMITS[plan];
+  return (
+    <GlassCard className="p-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-foreground">Plan usage</h2>
+        <span className="rounded-full bg-violet/10 px-2.5 py-1 text-xs font-medium capitalize text-violet">
+          {plan}
+        </span>
+      </div>
+      <div className="mt-5 space-y-4">
+        <Meter label="Agents" used={usage.agents} limit={limits.agents} />
+        <Meter label="Connected tools" used={usage.tools} limit={limits.tools} />
+        <Meter
+          label="Protected actions this month"
+          used={usage.actionsThisMonth}
+          limit={limits.actionsPerMonth}
+        />
+      </div>
+      <Link
+        href="/#pricing"
+        className="mt-5 inline-block text-sm font-medium text-violet hover:underline"
+      >
+        Upgrade plan →
+      </Link>
     </GlassCard>
   );
 }
 
-export default function OverviewPage() {
-  const { state, pendingCount, approve, deny } = useDashboard();
+export default async function OverviewPage() {
+  const profile = await getProfile();
+  const projectId = await currentProjectId();
+  const [servers, tools, policies, approvals, audit, usage] = await Promise.all([
+    listServers(projectId),
+    listTools(projectId),
+    listPolicies(projectId),
+    listApprovals(projectId),
+    listAudit(projectId),
+    getUsage(projectId),
+  ]);
 
-  const serverNames = useMemo(
-    () => new Map(state.servers.map((s) => [s.id, s.name])),
-    [state.servers],
-  );
-
+  const serverNames = Object.fromEntries(servers.map((s) => [s.id, s.name]));
+  const pending = approvals.filter((a) => a.status === "pending");
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
-  const actionsToday = state.audit.filter(
-    (e) => e.timestamp >= startOfToday.getTime(),
-  ).length;
-
-  const pending = state.approvals.filter((a) => a.status === "pending");
-  const recent = state.audit.slice(0, 6);
+  const actionsToday = audit.filter((e) => e.timestamp >= startOfToday.getTime()).length;
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Overview"
-        description="Everything your agents requested, decided, and executed — through one gateway."
-      />
+      <PageHeader title="Overview" />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          label="Connected MCP servers"
-          value={state.servers.length}
-          href="/dashboard/servers"
-          icon={Server}
-        />
+        <StatCard label="Connected MCPs" value={servers.length} href="/dashboard/servers" icon={Server} />
         <StatCard
           label="Exposed tools"
-          value={state.tools.filter((t) => t.enabled).length}
+          value={tools.filter((t) => t.enabled).length}
           href="/dashboard/tools"
           icon={Wrench}
         />
-        <StatCard
-          label="Active policies"
-          value={state.policies.length}
-          href="/dashboard/policies"
-          icon={ShieldCheck}
-        />
-        <StatCard
-          label="Pending approvals"
-          value={pendingCount}
-          href="/dashboard/approvals"
-          icon={UserRoundCheck}
-        />
-        <StatCard
-          label="Actions logged today"
-          value={actionsToday}
-          href="/dashboard/logs"
-          icon={ScrollText}
-        />
+        <StatCard label="Active policies" value={policies.length} href="/dashboard/policies" icon={ShieldCheck} />
+        <StatCard label="Pending approvals" value={pending.length} href="/dashboard/approvals" icon={UserRoundCheck} />
+        <StatCard label="Actions today" value={actionsToday} href="/dashboard/logs" icon={ScrollText} />
       </div>
 
-      <ArchitectureStrip serverCount={state.servers.length} />
-
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
         <GlassCard className="p-6">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-foreground">Pending approvals</h2>
-            <Link
-              href="/dashboard/approvals"
-              className="text-sm font-medium text-violet hover:underline"
-            >
+            <Link href="/dashboard/approvals" className="text-sm font-medium text-violet hover:underline">
               Open queue →
             </Link>
           </div>
           {pending.length === 0 ? (
             <p className="mt-5 text-sm text-muted-foreground">
-              Nothing waiting. Run the demo to see an approval arrive.
+              Nothing waiting on a human right now.
             </p>
           ) : (
             <div className="mt-4 space-y-3">
-              {pending.map((approval) => (
-                <div
-                  key={approval.id}
-                  className="rounded-xl border border-ink/10 bg-white p-4"
-                >
+              {pending.slice(0, 3).map((a) => (
+                <div key={a.id} className="rounded-xl border border-ink/10 bg-white/60 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-mono text-sm font-semibold text-foreground">
-                      {approval.exposedTool}
-                    </p>
-                    <Pill label="waiting for approval" tone="review" />
+                    <p className="font-mono text-sm font-semibold text-foreground">{a.exposedTool}</p>
+                    <StatusBadge label="waiting for approval" tone="review" />
                   </div>
                   <p className="mt-1.5 text-sm text-muted-foreground">
-                    <span className="font-mono text-[13px]">{approval.agent}</span>
-                    {" · "}
-                    {serverNames.get(approval.serverId)} ·{" "}
-                    <TimeAgo ts={approval.requestedAt} />
+                    <span className="font-mono text-[13px]">{a.agent}</span> · {serverNames[a.serverId]} ·{" "}
+                    <TimeAgo ts={a.requestedAt} />
                   </p>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => approve(approval.id)}
-                      className="rounded-full bg-violet px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-deep"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deny(approval.id)}
-                      className="rounded-full border border-ink/15 px-4 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-ink/5"
-                    >
-                      Deny
-                    </button>
+                  <div className="mt-3">
+                    <ApprovalActions approvalId={a.id} />
                   </div>
                 </div>
               ))}
@@ -218,33 +180,30 @@ export default function OverviewPage() {
           )}
         </GlassCard>
 
-        <GlassCard className="p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-foreground">Recent activity</h2>
-            <Link
-              href="/dashboard/logs"
-              className="text-sm font-medium text-violet hover:underline"
-            >
-              All logs →
-            </Link>
-          </div>
-          <div className="mt-4 divide-y divide-ink/5">
-            {recent.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between gap-3 py-2.5"
-              >
+        {profile ? <UsageCard plan={profile.plan} usage={usage} /> : null}
+      </div>
+
+      <GlassCard className="p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-foreground">Recent activity</h2>
+          <Link href="/dashboard/logs" className="text-sm font-medium text-violet hover:underline">
+            All logs →
+          </Link>
+        </div>
+        {audit.length === 0 ? (
+          <p className="mt-5 text-sm text-muted-foreground">
+            No actions logged yet. Connect an agent to start the trail.
+          </p>
+        ) : (
+          <div className="mt-3 divide-y divide-ink/5">
+            {audit.slice(0, 6).map((entry) => (
+              <div key={entry.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <Bot
-                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <span className="truncate font-mono text-[13px] text-foreground">
-                    {entry.exposedTool}
-                  </span>
+                  <Bot className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <span className="truncate font-mono text-[13px] text-foreground">{entry.exposedTool}</span>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <Pill label={entry.status} tone={statusTone(entry.status)} />
+                  <StatusBadge label={entry.status} tone={statusTone(entry.status)} />
                   <span className="hidden text-xs text-muted-foreground sm:block">
                     <TimeAgo ts={entry.timestamp} />
                   </span>
@@ -252,8 +211,8 @@ export default function OverviewPage() {
               </div>
             ))}
           </div>
-        </GlassCard>
-      </div>
+        )}
+      </GlassCard>
     </div>
   );
 }

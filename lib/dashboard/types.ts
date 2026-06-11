@@ -141,3 +141,56 @@ export interface DashboardState {
   approvals: ApprovalRequest[];
   audit: AuditEntry[];
 }
+
+export type Plan = "free" | "builder" | "team" | "enterprise";
+
+export interface Profile {
+  id: string;
+  email: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
+  plan: Plan;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+}
+
+export type AgentStatus = "active" | "inactive";
+
+export interface Agent {
+  id: string;
+  name: string;
+  status: AgentStatus;
+  keyPreview: string | null;
+  lastSeenAt: number | null;
+  createdAt: number;
+}
+
+/** Free-tier caps surfaced as usage meters. Enforcement lands with billing. */
+export interface PlanLimits {
+  projects: number;
+  agents: number;
+  tools: number;
+  actionsPerMonth: number;
+}
+
+export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
+  free: { projects: 1, agents: 1, tools: 3, actionsPerMonth: 100 },
+  builder: { projects: 3, agents: 5, tools: 10, actionsPerMonth: 5000 },
+  team: { projects: 10, agents: 50, tools: 100, actionsPerMonth: 50000 },
+  enterprise: {
+    projects: Infinity,
+    agents: Infinity,
+    tools: Infinity,
+    actionsPerMonth: Infinity,
+  },
+};
+
+export interface UsageSnapshot {
+  projects: number;
+  agents: number;
+  tools: number;
+  actionsThisMonth: number;
+}
