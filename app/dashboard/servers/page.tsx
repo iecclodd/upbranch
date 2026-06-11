@@ -103,7 +103,6 @@ export default async function ServersPage() {
               <div className="mt-4 flex items-center gap-2">
                 <h2 className="font-semibold text-foreground">{server.name}</h2>
                 <MetaChip label={server.transport.type} />
-                {server.kind === "mock" ? <MetaChip label="demo" /> : null}
               </div>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                 {server.description}

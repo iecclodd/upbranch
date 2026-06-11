@@ -1,6 +1,8 @@
+import { headers } from "next/headers";
 import { Bot } from "lucide-react";
 import { getProfile } from "@/lib/auth/session";
 import { currentProjectId, getUsage, listAgents } from "@/lib/db/repository";
+import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
 import {
   EmptyState,
   GlassCard,
@@ -16,11 +18,18 @@ import { PLAN_LIMITS } from "@/lib/dashboard/types";
 
 export default async function AgentsPage() {
   const projectId = await currentProjectId();
-  const [profile, agents, usage] = await Promise.all([
+  const [profile, agents, usage, headerList] = await Promise.all([
     getProfile(),
     listAgents(projectId),
     getUsage(projectId),
+    headers(),
   ]);
+
+  const host = headerList.get("host") ?? "localhost:3000";
+  const proto =
+    headerList.get("x-forwarded-proto") ??
+    (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  const gatewayUrl = `${proto}://${host}/api/mcp`;
 
   const limit = PLAN_LIMITS[profile?.plan ?? "free"].agents;
   const atLimit = Number.isFinite(limit) && usage.agents >= limit;
@@ -38,16 +47,13 @@ export default async function AgentsPage() {
           Connect an agent
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Point your agent&apos;s MCP config at Polyshield and pass its key.
+          Point your agent&apos;s MCP config at Polyshield and pass its key. Tool
+          names arrive namespaced — <span className="font-mono text-xs">github.list_issues</span>{" "}
+          is exposed as <span className="font-mono text-xs">github_list_issues</span>.
         </p>
-        <pre className="mt-3 overflow-x-auto rounded-xl bg-ink p-4 font-mono text-xs leading-5 text-white/90">
-          {`"mcpServers": {
-  "polyshield": {
-    "url": "https://gw.polyshield.dev/mcp",
-    "headers": { "Authorization": "Bearer <agent-key>" }
-  }
-}`}
-        </pre>
+        <div className="mt-3">
+          <ConnectSnippet gatewayUrl={gatewayUrl} />
+        </div>
       </GlassCard>
 
       {atLimit ? (

@@ -1,10 +1,11 @@
 "use client";
 
 import { useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import {
   approveAction,
   denyAction,
+  deletePolicyAction,
   setPolicyDecisionAction,
   toggleToolAction,
 } from "@/app/dashboard/actions";
@@ -75,6 +76,31 @@ export function PolicySelect({
         </option>
       ))}
     </select>
+  );
+}
+
+export function DeletePolicyButton({
+  policyId,
+  label,
+}: {
+  policyId: string;
+  label: string;
+}) {
+  const [pending, start] = useTransition();
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => {
+        if (confirm(`Delete the policy on ${label}? The tool falls back to its default.`)) {
+          start(() => deletePolicyAction(policyId));
+        }
+      }}
+      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50"
+      aria-label={`Delete policy on ${label}`}
+    >
+      <Trash2 className="h-4 w-4" aria-hidden="true" />
+    </button>
   );
 }
 

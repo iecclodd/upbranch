@@ -2,15 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Download, Search } from "lucide-react";
 import { formatTime } from "@/lib/dashboard/format";
+import { decisionTone, statusTone } from "@/lib/dashboard/tones";
 import type { AuditEntry, AuditStatus } from "@/lib/dashboard/types";
-import {
-  GlassCard,
-  StatusBadge,
-  decisionTone,
-  statusTone,
-} from "@/components/dashboard/primitives";
+import { GlassCard, StatusBadge } from "@/components/dashboard/primitives";
 import { cn } from "@/lib/utils";
 
 const FILTERS: Array<{ label: string; value: AuditStatus | "all" }> = [
@@ -20,6 +16,7 @@ const FILTERS: Array<{ label: string; value: AuditStatus | "all" }> = [
   { label: "Approved", value: "approved" },
   { label: "Denied", value: "denied" },
   { label: "Blocked", value: "blocked" },
+  { label: "Errors", value: "error" },
 ];
 
 export function AuditLogsTable({
@@ -45,6 +42,18 @@ export function AuditLogsTable({
     });
   }, [entries, query, filter]);
 
+  function exportJson() {
+    const blob = new Blob([JSON.stringify(filtered, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `polyshield-audit-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -60,7 +69,7 @@ export function AuditLogsTable({
             className="w-full rounded-full border border-ink/10 bg-white/70 py-2 pl-9 pr-3 text-sm outline-none backdrop-blur transition focus:border-violet/40 focus:ring-4 focus:ring-violet/10"
           />
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -76,6 +85,15 @@ export function AuditLogsTable({
               {f.label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={exportJson}
+            className="flex items-center gap-1.5 rounded-full bg-white/60 px-3.5 py-1.5 text-sm font-medium text-foreground/55 ring-1 ring-ink/10 transition-colors hover:text-foreground"
+            aria-label="Export filtered entries as JSON"
+          >
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+            JSON
+          </button>
         </div>
       </div>
 
@@ -153,6 +171,24 @@ export function AuditLogsTable({
                           <div className="sm:col-span-2">
                             <Detail label="Reason" value={entry.reason ?? "—"} />
                           </div>
+                          {Object.keys(entry.args).length > 0 ? (
+                            <div className="sm:col-span-2">
+                              <Detail label="Arguments">
+                                <pre className="mt-1 max-h-40 overflow-auto rounded-lg bg-ink p-3 font-mono text-xs leading-5 text-white/90">
+                                  {JSON.stringify(entry.args, null, 2)}
+                                </pre>
+                              </Detail>
+                            </div>
+                          ) : null}
+                          {entry.result !== undefined && entry.result !== null ? (
+                            <div className="sm:col-span-2">
+                              <Detail label="Result">
+                                <pre className="mt-1 max-h-40 overflow-auto rounded-lg bg-ink p-3 font-mono text-xs leading-5 text-white/90">
+                                  {JSON.stringify(entry.result, null, 2)}
+                                </pre>
+                              </Detail>
+                            </div>
+                          ) : null}
                         </div>
                       </motion.div>
                     ) : null}

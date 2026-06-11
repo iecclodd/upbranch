@@ -7,23 +7,22 @@
  * an MCP *server* toward the agent (exposing only enabled catalog tools).
  */
 
-export type McpServerKind = "mock" | "remote";
 export type McpServerStatus = "connected" | "connecting" | "pending" | "error";
 
 /**
  * Local stdio servers are launched and supervised by the Polyshield local
  * runner. The runner dials OUT to the Polyshield control plane and only
  * accepts jobs from it — agents never connect to the runner directly, so the
- * policy decision point stays off the agent's machine.
+ * policy decision point stays off the agent's machine. Until the runner
+ * ships, stdio servers register with status "pending" and expose no tools.
  */
 export interface StdioTransport {
   type: "stdio";
   command: string;
   args: string[];
   /**
-   * Write-only: values here are masked for display. Raw values go straight
-   * to the credential vault and are injected into the child process env by
-   * the runner at execution time. There is no read-plaintext path.
+   * Masked for display. Raw values never reach Polyshield's database — stdio
+   * credentials will live with the local runner on the user's machine.
    */
   env: Record<string, string>;
   /** Host env var names forwarded to the child process unchanged. */
@@ -35,8 +34,9 @@ export interface HttpTransport {
   type: "http";
   endpoint: string;
   /**
-   * Write-only: masked for display. The raw header lives only in the vault
-   * and is attached by the gateway when it forwards approved calls.
+   * Masked for display. The raw header is AES-256-GCM encrypted in the
+   * credential vault (server_secrets) and attached only when the gateway
+   * forwards an approved call. There is no read-plaintext path.
    */
   authHeader?: string;
 }
@@ -48,7 +48,6 @@ export interface McpServer {
   name: string;
   /** Namespace prepended to raw tool names, e.g. "crm" → crm.update_contact */
   prefix: string;
-  kind: McpServerKind;
   status: McpServerStatus;
   transport: TransportConfig;
   description: string;
@@ -64,7 +63,8 @@ export interface RawTool {
 
 /**
  * A discovered tool in Polyshield's catalog. The agent only ever sees
- * `exposedName`; Polyshield maps it back to `rawName` on the source server.
+ * `exposedName` (dots become underscores on the MCP wire); Polyshield maps it
+ * back to `rawName` on the source server.
  */
 export interface CatalogTool {
   id: string;
@@ -112,6 +112,8 @@ export interface ApprovalRequest {
   decidedVia?: ApprovalMethod;
   /** Audit entry created when the call was held; updated on decision. */
   auditId: string;
+  /** Downstream execution result, recorded when an approved call ran. */
+  result?: unknown;
 }
 
 export type AuditStatus =
@@ -119,7 +121,8 @@ export type AuditStatus =
   | "denied"
   | "waiting_for_approval"
   | "approved"
-  | "blocked";
+  | "blocked"
+  | "error";
 
 export interface AuditEntry {
   id: string;
@@ -132,14 +135,8 @@ export interface AuditEntry {
   approver?: string;
   decidedVia?: ApprovalMethod;
   reason?: string;
-}
-
-export interface DashboardState {
-  servers: McpServer[];
-  tools: CatalogTool[];
-  policies: Policy[];
-  approvals: ApprovalRequest[];
-  audit: AuditEntry[];
+  args: Record<string, unknown>;
+  result?: unknown;
 }
 
 export type Plan = "free" | "builder" | "team" | "enterprise";

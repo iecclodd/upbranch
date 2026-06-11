@@ -90,7 +90,15 @@ function AddServerDialog({
             authHeader: authHeader.trim() || undefined,
           };
     start(async () => {
-      await addServerAction({ name: name.trim(), prefix: cleanPrefix, transport });
+      const result = await addServerAction({
+        name: name.trim(),
+        prefix: cleanPrefix,
+        transport,
+      });
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
       onClose();
     });
   }
@@ -111,8 +119,9 @@ function AddServerDialog({
             <div>
               <h2 className="text-lg font-semibold text-foreground">Add MCP server</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                On save, Polyshield runs tools/list and adds the discovered tools
-                to your catalog.
+                {type === "http"
+                  ? "On save, Polyshield connects, runs tools/list, and adds the discovered tools to your catalog."
+                  : "Local servers are launched by the Polyshield local runner on your machine — coming soon. You can register one now; its tools appear once a runner pairs."}
               </p>
             </div>
             <button
@@ -181,6 +190,7 @@ function AddServerDialog({
                   }}
                   placeholder={type === "stdio" ? "playwright" : "github"}
                   pattern="[a-zA-Z][a-zA-Z0-9_]*"
+                  title="Starts with a letter; letters, digits and underscores only"
                   className={cn(field, "font-mono")}
                 />
               </div>
@@ -239,7 +249,8 @@ function AddServerDialog({
                   />
                   <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <KeyRound className="h-3 w-3 shrink-0" aria-hidden="true" />
-                    Stored write-only in the credential vault, masked everywhere.
+                    Masked everywhere; raw values stay on your machine with the
+                    local runner.
                   </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -319,7 +330,11 @@ function AddServerDialog({
                 className="flex items-center gap-2 rounded-full bg-violet px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-deep disabled:opacity-70"
               >
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Save &amp; discover
+                {type === "http"
+                  ? pending
+                    ? "Connecting…"
+                    : "Connect & discover"
+                  : "Register server"}
               </button>
             </div>
           </form>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth/session";
-import { ensureProject, currentProjectId, listApprovals } from "@/lib/db/repository";
+import { currentProjectId, listApprovals } from "@/lib/db/repository";
 import { Logo } from "@/components/landing/logo";
 import { Dock } from "@/components/dashboard/dock";
 import { AccountMenu } from "@/components/dashboard/account-menu";
@@ -15,7 +15,6 @@ export default async function DashboardLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
   const profile = await requireProfile();
-  await ensureProject();
   const projectId = await currentProjectId();
   const approvals = await listApprovals(projectId);
   const pendingCount = approvals.filter((a) => a.status === "pending").length;

@@ -8,6 +8,7 @@ import {
   TimeAgo,
 } from "@/components/dashboard/primitives";
 import { ApprovalActions } from "@/components/dashboard/interactive";
+import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 
 export default async function ApprovalsPage() {
   const projectId = await currentProjectId();
@@ -21,6 +22,7 @@ export default async function ApprovalsPage() {
 
   return (
     <div className="space-y-8">
+      <AutoRefresh />
       <PageHeader
         title="Approval Queue"
         description="Risky actions wait here before reaching a real API. Approving forwards the call; denying returns a refusal to the agent."

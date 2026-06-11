@@ -10,10 +10,10 @@ import {
   GlassCard,
   PageHeader,
   StatusBadge,
-  decisionTone,
 } from "@/components/dashboard/primitives";
 import { ToolToggle } from "@/components/dashboard/interactive";
-import { resolvePolicy } from "@/lib/dashboard/seed";
+import { decisionTone } from "@/lib/dashboard/tones";
+import { resolveDisplayPolicy } from "@/lib/gateway/policy";
 
 export default async function ToolsPage() {
   const projectId = await currentProjectId();
@@ -64,7 +64,7 @@ export default async function ToolsPage() {
                 </div>
                 <div className="divide-y divide-ink/5">
                   {serverTools.map((tool) => {
-                    const { decision, policy } = resolvePolicy(policies, tool.exposedName);
+                    const { decision, policy } = resolveDisplayPolicy(policies, tool.exposedName);
                     return (
                       <div
                         key={tool.id}

@@ -1,6 +1,5 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { MOCK_RAW_TOOLS, MOCK_SERVERS } from "@/lib/dashboard/mock-mcps";
-import { toCatalogTool } from "@/lib/dashboard/connector";
 import type {
   Agent,
   ApprovalRequest,
@@ -18,8 +17,6 @@ import type {
  * etc.) only touches this folder.
  */
 
-type Db = Awaited<ReturnType<typeof createClient>>;
-
 const ms = (t: string | null): number | null => (t ? Date.parse(t) : null);
 
 // ---------- row → domain mappers ----------
@@ -28,7 +25,6 @@ type ServerRow = {
   id: string;
   name: string;
   prefix: string;
-  kind: string;
   status: string;
   transport: McpServer["transport"];
   description: string;
@@ -40,7 +36,6 @@ function mapServer(r: ServerRow): McpServer {
     id: r.id,
     name: r.name,
     prefix: r.prefix,
-    kind: r.kind as McpServer["kind"],
     status: r.status as McpServer["status"],
     transport: r.transport,
     description: r.description,
@@ -51,8 +46,7 @@ function mapServer(r: ServerRow): McpServer {
 // ---------- workspace ----------
 
 /**
- * Return the user's default project, creating and seeding it with demo MCP
- * servers on first visit so the dashboard is never empty. Idempotent.
+ * Return the user's default project, creating it on first visit. Idempotent.
  */
 export async function ensureProject(): Promise<Project> {
   const supabase = await createClient();
@@ -77,82 +71,18 @@ export async function ensureProject(): Promise<Project> {
     .select("id, name")
     .single();
   if (error || !project) throw error ?? new Error("Could not create project");
-
-  await seedDemoServers(supabase, project.id);
   return project;
 }
 
-/** The user's working project id. Throws if none (pages call ensureProject). */
-export async function currentProjectId(): Promise<string> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const { data } = await supabase
-    .from("projects")
-    .select("id")
-    .eq("owner_id", user.id)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!data) throw new Error("No project");
-  return data.id;
-}
-
-/** Insert the demo MCP servers + their discovered tools + starter policies. */
-async function seedDemoServers(supabase: Db, projectId: string) {
-  for (const mock of MOCK_SERVERS) {
-    const { data: server } = await supabase
-      .from("mcp_servers")
-      .insert({
-        project_id: projectId,
-        name: mock.name,
-        prefix: mock.prefix,
-        kind: "mock",
-        status: "connected",
-        transport: mock.transport,
-        description: mock.description,
-        last_action_at: new Date().toISOString(),
-      })
-      .select("id, prefix")
-      .single();
-    if (!server) continue;
-
-    const rawTools = MOCK_RAW_TOOLS[mock.id] ?? [];
-    const toolRows = rawTools.map((raw) => {
-      const exposed = toCatalogTool(mock, raw);
-      return {
-        project_id: projectId,
-        server_id: server.id,
-        raw_name: raw.name,
-        raw_description: raw.description,
-        input_schema: raw.inputSchema,
-        exposed_name: exposed.exposedName,
-        enabled: true,
-      };
-    });
-    if (toolRows.length) await supabase.from("catalog_tools").insert(toolRows);
-
-    // Starter policies: gate destructive/outbound verbs by default.
-    const policyRows = rawTools
-      .filter((raw) =>
-        /^(delete|remove|send|publish|refund|archive|merge|update)/i.test(
-          raw.name,
-        ),
-      )
-      .map((raw) => ({
-        project_id: projectId,
-        server_id: server.id,
-        exposed_tool: `${mock.prefix}.${raw.name}`,
-        decision: /^(delete|remove)/i.test(raw.name)
-          ? "deny"
-          : "require_approval",
-        description: "Auto-gated on discovery — sensitive verb detected.",
-      }));
-    if (policyRows.length) await supabase.from("policies").insert(policyRows);
-  }
-}
+/**
+ * The user's working project id. Wrapped in React cache() so the layout and
+ * page (which Next.js renders in parallel) share one ensureProject call per
+ * request — a fresh account no longer races itself into "No project".
+ */
+export const currentProjectId = cache(async (): Promise<string> => {
+  const project = await ensureProject();
+  return project.id;
+});
 
 // ---------- reads ----------
 
@@ -160,7 +90,7 @@ export async function listServers(projectId: string): Promise<McpServer[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("mcp_servers")
-    .select("id, name, prefix, kind, status, transport, description, last_action_at")
+    .select("id, name, prefix, status, transport, description, last_action_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: true });
   return (data ?? []).map((r) => mapServer(r as ServerRow));
@@ -223,6 +153,7 @@ export async function listApprovals(
     approver: r.approver ?? undefined,
     decidedVia: r.decided_via ?? undefined,
     auditId: r.audit_id ?? "",
+    result: r.result ?? undefined,
   }));
 }
 
@@ -245,6 +176,8 @@ export async function listAudit(projectId: string): Promise<AuditEntry[]> {
     approver: r.approver ?? undefined,
     decidedVia: r.decided_via ?? undefined,
     reason: r.reason ?? undefined,
+    args: r.args ?? {},
+    result: r.result ?? undefined,
   }));
 }
 

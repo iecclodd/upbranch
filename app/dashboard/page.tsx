@@ -13,6 +13,7 @@ import { getProfile } from "@/lib/auth/session";
 import {
   currentProjectId,
   getUsage,
+  listAgents,
   listApprovals,
   listAudit,
   listPolicies,
@@ -24,9 +25,10 @@ import {
   PageHeader,
   StatusBadge,
   TimeAgo,
-  statusTone,
 } from "@/components/dashboard/primitives";
 import { ApprovalActions } from "@/components/dashboard/interactive";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding";
+import { statusTone } from "@/lib/dashboard/tones";
 import { PLAN_LIMITS, type Plan, type UsageSnapshot } from "@/lib/dashboard/types";
 
 function StatCard({
@@ -115,13 +117,14 @@ function UsageCard({ plan, usage }: { plan: Plan; usage: UsageSnapshot }) {
 export default async function OverviewPage() {
   const profile = await getProfile();
   const projectId = await currentProjectId();
-  const [servers, tools, policies, approvals, audit, usage] = await Promise.all([
+  const [servers, tools, policies, approvals, audit, usage, agents] = await Promise.all([
     listServers(projectId),
     listTools(projectId),
     listPolicies(projectId),
     listApprovals(projectId),
     listAudit(projectId),
     getUsage(projectId),
+    listAgents(projectId),
   ]);
 
   const serverNames = Object.fromEntries(servers.map((s) => [s.id, s.name]));
@@ -130,9 +133,19 @@ export default async function OverviewPage() {
   startOfToday.setHours(0, 0, 0, 0);
   const actionsToday = audit.filter((e) => e.timestamp >= startOfToday.getTime()).length;
 
+  const setupDone = servers.length > 0 && agents.length > 0 && audit.length > 0;
+
   return (
     <div className="space-y-8">
       <PageHeader title="Overview" />
+
+      {!setupDone ? (
+        <OnboardingChecklist
+          hasServer={servers.length > 0}
+          hasAgent={agents.length > 0}
+          hasAction={audit.length > 0}
+        />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Connected MCPs" value={servers.length} href="/dashboard/servers" icon={Server} />

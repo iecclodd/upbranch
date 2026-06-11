@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "polyshield-dev",
-      "runtimeExecutable": "C:\\Users\\Eric Qin\\AppData\\Roaming\\fnm\\node-versions\\v22.22.2\\installation\\node.exe",
-      "runtimeArgs": ["node_modules/next/dist/bin/next", "dev"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 3000
     }
   ]

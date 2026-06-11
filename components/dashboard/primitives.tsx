@@ -2,10 +2,10 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { timeAgo } from "@/lib/dashboard/format";
-import type { AuditStatus, PolicyDecision } from "@/lib/dashboard/types";
+import type { Tone } from "@/lib/dashboard/tones";
 import { cn } from "@/lib/utils";
 
-export type Tone = "good" | "review" | "bad" | "neutral" | "violet";
+export type { Tone };
 
 const dotColor: Record<Tone, string> = {
   good: "bg-emerald-500",
@@ -22,18 +22,6 @@ const textColor: Record<Tone, string> = {
   neutral: "text-foreground/55",
   violet: "text-violet-deep",
 };
-
-export function decisionTone(decision: PolicyDecision): Tone {
-  if (decision === "allow") return "good";
-  if (decision === "deny") return "bad";
-  return "review";
-}
-
-export function statusTone(status: AuditStatus): Tone {
-  if (status === "allowed" || status === "approved") return "good";
-  if (status === "denied" || status === "blocked") return "bad";
-  return "review";
-}
 
 /** A clean status pill: soft tinted background, leading dot, no heavy border. */
 export function StatusBadge({

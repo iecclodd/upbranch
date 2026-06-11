@@ -11,3 +11,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# local data / archives
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+Satoshi-Variable.zip
