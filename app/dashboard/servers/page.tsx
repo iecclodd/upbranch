@@ -1,5 +1,6 @@
+import { headers } from "next/headers";
 import { Globe, Lock, Plug, TerminalSquare } from "lucide-react";
-import { currentProjectId, listServers, listTools } from "@/lib/db/repository";
+import { currentProjectId, listRunners, listServers, listTools } from "@/lib/db/repository";
 import {
   EmptyState,
   GlassCard,
@@ -13,6 +14,9 @@ import {
   AddServerButton,
   DeleteServerButton,
 } from "@/components/dashboard/add-server-dialog";
+import { ShieldModeSelect } from "@/components/dashboard/interactive";
+import { RunnersCard } from "@/components/dashboard/runners";
+import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import type { McpServer, TransportConfig } from "@/lib/dashboard/types";
 
 const statusTones: Record<McpServer["status"], Tone> = {
@@ -58,24 +62,42 @@ function TransportSummary({ transport }: { transport: TransportConfig }) {
 
 export default async function ServersPage() {
   const projectId = await currentProjectId();
-  const [servers, tools] = await Promise.all([
+  const [servers, tools, runners, headerList] = await Promise.all([
     listServers(projectId),
     listTools(projectId),
+    listRunners(projectId),
+    headers(),
   ]);
+
+  const host = headerList.get("host") ?? "localhost:3000";
+  const proto =
+    headerList.get("x-forwarded-proto") ??
+    (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  const gatewayOrigin = `${proto}://${host}`;
 
   const toolCounts = new Map<string, number>();
   for (const t of tools) {
     if (t.enabled) toolCounts.set(t.serverId, (toolCounts.get(t.serverId) ?? 0) + 1);
   }
   const existingPrefixes = servers.map((s) => s.prefix);
+  const hasStdioServers = servers.some((s) => s.transport.type === "stdio");
 
   return (
     <div className="space-y-8">
+      <AutoRefresh seconds={8} />
       <PageHeader
         title="MCP Servers"
         description="Downstream servers connected to Polyshield. Your agent only sees the tools you expose, never these directly."
         action={<AddServerButton existingPrefixes={existingPrefixes} />}
       />
+
+      {hasStdioServers || runners.length > 0 ? (
+        <RunnersCard
+          runners={runners}
+          gatewayOrigin={gatewayOrigin}
+          hasStdioServers={hasStdioServers}
+        />
+      ) : null}
 
       {servers.length === 0 ? (
         <EmptyState
@@ -108,14 +130,21 @@ export default async function ServersPage() {
                 {server.description}
               </p>
               <TransportSummary transport={server.transport} />
-              <div className="mt-auto flex items-center justify-between pt-4 text-sm">
+              <div className="mt-auto flex items-center justify-between gap-2 pt-4 text-sm">
                 <span className="flex items-center gap-1.5 text-foreground/80">
                   <Plug className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                   <span className="font-semibold">{toolCounts.get(server.id) ?? 0}</span> tools
                 </span>
-                <span className="text-muted-foreground">
-                  <TimeAgo ts={server.lastActionAt} />
-                </span>
+                <div className="flex items-center gap-2.5">
+                  <ShieldModeSelect
+                    serverId={server.id}
+                    mode={server.shieldMode}
+                    label={server.name}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    <TimeAgo ts={server.lastActionAt} />
+                  </span>
+                </div>
               </div>
             </GlassCard>
           ))}

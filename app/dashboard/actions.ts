@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { maskSecret } from "@/lib/dashboard/format";
 import { exposedName, isRiskyRawTool } from "@/lib/gateway/tools";
 import { isParseableCondition } from "@/lib/gateway/policy";
+import { applyShield, describeScan, scanToolResult } from "@/lib/gateway/shield";
 import {
   discoverHttpTools,
   McpHttpClient,
@@ -17,6 +18,7 @@ import { decryptSecret, encryptSecret } from "@/lib/vault";
 import type {
   PolicyDecision,
   RawTool,
+  ShieldMode,
   TransportConfig,
 } from "@/lib/dashboard/types";
 
@@ -24,14 +26,14 @@ export interface ActionResult {
   error?: string;
 }
 
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
 /**
  * Resolve the user's working project. Inlined here (rather than imported from
  * the repository) so this "use server" module — reachable from Client
  * Components — never pulls server-only query code into the client bundle.
  */
-async function currentProjectId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<string> {
+async function currentProjectId(supabase: Supabase): Promise<string> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -48,9 +50,34 @@ async function currentProjectId(
 }
 
 /**
+ * Record a control-plane change in the audit log (event_type='admin'). The
+ * acting user lands in the `agent` column; `target` is the entity touched and
+ * `detail` the human-readable sentence shown in the log row.
+ */
+async function logAdminEvent(
+  supabase: Supabase,
+  projectId: string,
+  event: { target: string; detail: string; serverId?: string | null },
+): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  await supabase.from("audit_log").insert({
+    project_id: projectId,
+    server_id: event.serverId ?? null,
+    agent: user?.email ?? "dashboard",
+    exposed_tool: event.target,
+    decision: "allow",
+    status: "info",
+    event_type: "admin",
+    reason: event.detail,
+    args: {},
+  });
+}
+
+/**
  * Display copy of a transport: secret values replaced with masks. The raw
- * values go to the vault (http) or stay with the future local runner (stdio);
- * the database only ever sees this masked shape.
+ * values go to the vault; the database only ever sees this masked shape.
  */
 function maskTransport(transport: TransportConfig): TransportConfig {
   if (transport.type === "http") {
@@ -170,16 +197,68 @@ export async function addServerAction(input: {
         );
       }
     }
+
+    await logAdminEvent(supabase, projectId, {
+      serverId: server.id,
+      target: input.name.trim(),
+      detail: `Connected HTTP MCP server "${input.name.trim()}" (${prefix}.*) — ${tools.length} tools discovered.`,
+    });
   } else {
-    // stdio servers wait for the local runner; no tools until one pairs.
-    await supabase.from("mcp_servers").insert({
-      project_id: projectId,
-      name: input.name.trim(),
-      prefix,
-      kind: "remote",
-      status: "pending",
-      transport: maskTransport(input.transport),
-      description: "Local stdio server — waiting for the Polyshield local runner (coming soon).",
+    if (!input.transport.command.trim()) {
+      return { error: "A launch command is required for a local stdio server." };
+    }
+
+    // Env values go to the vault as env:KEY ciphertext; the database keeps
+    // only masks. The control plane releases them solely to a paired runner.
+    const envEntries = Object.entries(input.transport.env).filter(([k, v]) => k && v);
+    let envSecrets: Array<{ name: string; ciphertext: string }> = [];
+    if (envEntries.length > 0) {
+      try {
+        envSecrets = envEntries.map(([key, value]) => ({
+          name: `env:${key}`,
+          ciphertext: encryptSecret(value),
+        }));
+      } catch {
+        return {
+          error: "Credential vault is not configured (POLYSHIELD_VAULT_KEY). Secrets not stored.",
+        };
+      }
+    }
+
+    const { data: server, error } = await supabase
+      .from("mcp_servers")
+      .insert({
+        project_id: projectId,
+        name: input.name.trim(),
+        prefix,
+        kind: "remote",
+        status: "pending",
+        transport: maskTransport(input.transport),
+        description: "Local stdio server — start the Polyshield runner on your machine to connect it.",
+      })
+      .select("id")
+      .single();
+    if (error || !server) return { error: "Could not save the server." };
+
+    if (envSecrets.length > 0) {
+      const { error: secretError } = await supabase.from("server_secrets").insert(
+        envSecrets.map((s) => ({
+          project_id: projectId,
+          server_id: server.id,
+          name: s.name,
+          ciphertext: s.ciphertext,
+        })),
+      );
+      if (secretError) {
+        await supabase.from("mcp_servers").delete().eq("id", server.id);
+        return { error: "Could not store the secrets in the vault." };
+      }
+    }
+
+    await logAdminEvent(supabase, projectId, {
+      serverId: server.id,
+      target: input.name.trim(),
+      detail: `Registered local stdio server "${input.name.trim()}" (${prefix}.*) — waiting for the local runner.`,
     });
   }
 
@@ -189,15 +268,64 @@ export async function addServerAction(input: {
 
 export async function deleteServerAction(serverId: string) {
   const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+  const { data: server } = await supabase
+    .from("mcp_servers")
+    .select("name, prefix")
+    .eq("id", serverId)
+    .maybeSingle();
   await supabase.from("mcp_servers").delete().eq("id", serverId);
+  if (server) {
+    await logAdminEvent(supabase, projectId, {
+      target: server.name,
+      detail: `Removed MCP server "${server.name}" (${server.prefix}.*) — its tools and policies were deleted.`,
+    });
+  }
   revalidatePath("/dashboard", "layout");
+}
+
+export async function setShieldModeAction(
+  serverId: string,
+  mode: ShieldMode,
+): Promise<ActionResult> {
+  if (!["off", "flag", "block"].includes(mode)) return { error: "Unknown shield mode." };
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+  const { data: server } = await supabase
+    .from("mcp_servers")
+    .update({ shield_mode: mode })
+    .eq("id", serverId)
+    .select("name")
+    .maybeSingle();
+  if (server) {
+    await logAdminEvent(supabase, projectId, {
+      serverId,
+      target: server.name,
+      detail: `Prompt-injection shield on "${server.name}" set to ${mode}.`,
+    });
+  }
+  revalidatePath("/dashboard", "layout");
+  return {};
 }
 
 // ---------- tools + policies ----------
 
 export async function toggleToolAction(toolId: string, enabled: boolean) {
   const supabase = await createClient();
-  await supabase.from("catalog_tools").update({ enabled }).eq("id", toolId);
+  const projectId = await currentProjectId(supabase);
+  const { data: tool } = await supabase
+    .from("catalog_tools")
+    .update({ enabled })
+    .eq("id", toolId)
+    .select("exposed_name, server_id")
+    .maybeSingle();
+  if (tool) {
+    await logAdminEvent(supabase, projectId, {
+      serverId: tool.server_id,
+      target: tool.exposed_name,
+      detail: `${enabled ? "Exposed" : "Hid"} tool ${tool.exposed_name} ${enabled ? "to" : "from"} agents.`,
+    });
+  }
   revalidatePath("/dashboard", "layout");
 }
 
@@ -206,7 +334,20 @@ export async function setPolicyDecisionAction(
   decision: PolicyDecision,
 ) {
   const supabase = await createClient();
-  await supabase.from("policies").update({ decision }).eq("id", policyId);
+  const projectId = await currentProjectId(supabase);
+  const { data: policy } = await supabase
+    .from("policies")
+    .update({ decision })
+    .eq("id", policyId)
+    .select("exposed_tool, server_id")
+    .maybeSingle();
+  if (policy) {
+    await logAdminEvent(supabase, projectId, {
+      serverId: policy.server_id,
+      target: policy.exposed_tool,
+      detail: `Policy on ${policy.exposed_tool} changed to ${decision.replaceAll("_", " ")}.`,
+    });
+  }
   revalidatePath("/dashboard", "layout");
 }
 
@@ -242,17 +383,102 @@ export async function createPolicyAction(input: {
     condition: condition ?? null,
     description: input.description?.trim() || "Added from the policy editor.",
   });
+  await logAdminEvent(supabase, projectId, {
+    serverId: tool.server_id,
+    target: input.exposedTool,
+    detail: `Created ${input.decision.replaceAll("_", " ")} policy on ${input.exposedTool}${condition ? ` when ${condition}` : ""}.`,
+  });
   revalidatePath("/dashboard", "layout");
   return {};
 }
 
 export async function deletePolicyAction(policyId: string) {
   const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+  const { data: policy } = await supabase
+    .from("policies")
+    .select("exposed_tool, decision, server_id")
+    .eq("id", policyId)
+    .maybeSingle();
   await supabase.from("policies").delete().eq("id", policyId);
+  if (policy) {
+    await logAdminEvent(supabase, projectId, {
+      serverId: policy.server_id,
+      target: policy.exposed_tool,
+      detail: `Deleted ${String(policy.decision).replaceAll("_", " ")} policy on ${policy.exposed_tool}.`,
+    });
+  }
   revalidatePath("/dashboard", "layout");
 }
 
 // ---------- approvals ----------
+
+const failureResult = (text: string): { result: McpToolResult; ok: boolean } => ({
+  result: { content: [{ type: "text", text }], isError: true },
+  ok: false,
+});
+
+/** Run an approved call on a local stdio server via a runner job. */
+async function executeApprovedStdio(
+  supabase: Supabase,
+  projectId: string,
+  serverId: string,
+  rawName: string,
+  args: Record<string, unknown>,
+): Promise<{ result: McpToolResult; ok: boolean }> {
+  const freshAfter = new Date(Date.now() - 90_000).toISOString();
+  const { data: online } = await supabase
+    .from("runners")
+    .select("id")
+    .eq("project_id", projectId)
+    .gt("last_seen_at", freshAfter)
+    .limit(1)
+    .maybeSingle();
+  if (!online) {
+    return failureResult(
+      "Approved, but no Polyshield local runner is online to execute this stdio call. Start the runner and approve again if needed.",
+    );
+  }
+
+  const { data: job } = await supabase
+    .from("runner_jobs")
+    .insert({
+      project_id: projectId,
+      server_id: serverId,
+      raw_name: rawName,
+      args,
+      agent: "approval-execute",
+    })
+    .select("id")
+    .single();
+  if (!job) return failureResult("Could not enqueue the runner job.");
+
+  const deadline = Date.now() + 55_000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1_000));
+    const { data: row } = await supabase
+      .from("runner_jobs")
+      .select("status, result, error")
+      .eq("id", job.id)
+      .maybeSingle();
+    if (!row) break;
+    if (row.status === "done") {
+      const r = (row.result ?? {}) as Partial<McpToolResult>;
+      const result: McpToolResult = {
+        content: Array.isArray(r.content) ? r.content : [],
+        structuredContent: r.structuredContent,
+        isError: r.isError === true,
+      };
+      return { result, ok: !result.isError };
+    }
+    if (row.status === "error" || row.status === "expired") {
+      return failureResult(
+        `Approved, but the runner could not execute the call: ${row.error ?? row.status}`,
+      );
+    }
+  }
+  return failureResult("Approved, but the runner did not return a result in time.");
+}
 
 /**
  * Execute an approved call against its source server using vaulted
@@ -260,33 +486,22 @@ export async function deletePolicyAction(policyId: string) {
  * polling the ticket gets something it can read.
  */
 async function executeApprovedCall(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: Supabase,
+  projectId: string,
   approval: {
     server_id: string | null;
     exposed_tool: string;
     args: Record<string, unknown>;
   },
-): Promise<{ result: McpToolResult; ok: boolean }> {
-  const failure = (text: string): { result: McpToolResult; ok: boolean } => ({
-    result: { content: [{ type: "text", text }], isError: true },
-    ok: false,
-  });
-
-  if (!approval.server_id) return failure("The source server no longer exists.");
+): Promise<{ result: McpToolResult; ok: boolean; shieldNote?: string; original?: McpToolResult }> {
+  if (!approval.server_id) return failureResult("The source server no longer exists.");
 
   const { data: server } = await supabase
     .from("mcp_servers")
-    .select("id, transport")
+    .select("id, transport, shield_mode")
     .eq("id", approval.server_id)
     .maybeSingle();
-  if (!server) return failure("The source server no longer exists.");
-
-  const transport = server.transport as TransportConfig;
-  if (transport.type !== "http") {
-    return failure(
-      "This tool lives on a local stdio server. The Polyshield local runner is not yet available, so the approved call could not be executed.",
-    );
-  }
+  if (!server) return failureResult("The source server no longer exists.");
 
   const { data: tool } = await supabase
     .from("catalog_tools")
@@ -294,36 +509,71 @@ async function executeApprovedCall(
     .eq("server_id", server.id)
     .eq("exposed_name", approval.exposed_tool)
     .maybeSingle();
-  if (!tool) return failure("The tool is no longer in the catalog.");
+  if (!tool) return failureResult("The tool is no longer in the catalog.");
 
-  const { data: secret } = await supabase
-    .from("server_secrets")
-    .select("ciphertext")
-    .eq("server_id", server.id)
-    .eq("name", "authHeader")
-    .maybeSingle();
+  const transport = server.transport as TransportConfig;
+  let executed: { result: McpToolResult; ok: boolean };
 
-  try {
-    const authHeader = secret ? decryptSecret(secret.ciphertext) : undefined;
-    const client = new McpHttpClient(transport.endpoint, authHeader);
-    await client.connect();
-    const result = truncateToolResult(await client.callTool(tool.raw_name, approval.args));
-    return { result, ok: !result.isError };
-  } catch (err) {
-    return failure(
-      `Approved, but execution failed: ${err instanceof Error ? err.message : "unknown error"}`,
+  if (transport.type === "http") {
+    const { data: secret } = await supabase
+      .from("server_secrets")
+      .select("ciphertext")
+      .eq("server_id", server.id)
+      .eq("name", "authHeader")
+      .maybeSingle();
+    try {
+      const authHeader = secret ? decryptSecret(secret.ciphertext) : undefined;
+      const client = new McpHttpClient(transport.endpoint, authHeader);
+      await client.connect();
+      const result = truncateToolResult(await client.callTool(tool.raw_name, approval.args));
+      executed = { result, ok: !result.isError };
+    } catch (err) {
+      return failureResult(
+        `Approved, but execution failed: ${err instanceof Error ? err.message : "unknown error"}`,
+      );
+    }
+  } else {
+    executed = await executeApprovedStdio(
+      supabase,
+      projectId,
+      server.id,
+      tool.raw_name,
+      approval.args,
     );
   }
+
+  // Approved results are still untrusted downstream bytes — screen them with
+  // the same shield as the gateway's allow path, and do it BEFORE the
+  // transport-failure check: a downstream server can set isError=true on a
+  // result whose text still carries an injection, and that must not slip
+  // through unscanned just because the call was flagged as an error.
+  const mode = (server.shield_mode ?? "flag") as ShieldMode;
+  const scan = scanToolResult(executed.result);
+  const { result: screened, blocked } = applyShield(executed.result, scan, mode);
+  const shieldNote = scan.flagged
+    ? `${blocked ? "Shield blocked the result" : "Shield flagged the result"} — matched: ${describeScan(scan)}.`
+    : undefined;
+
+  if (!executed.ok) {
+    return { result: screened, ok: false, original: executed.result, shieldNote };
+  }
+  return {
+    result: screened,
+    ok: !blocked,
+    original: executed.result,
+    shieldNote,
+  };
 }
 
 async function decideApproval(approvalId: string, decision: "approved" | "denied") {
   const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const approver = user?.email ?? "unknown";
 
-  // Atomic claim — a second click or a races approve/deny finds no row.
+  // Atomic claim — a second click or a racing approve/deny finds no row.
   const { data: approval } = await supabase
     .from("approvals")
     .update({
@@ -354,19 +604,25 @@ async function decideApproval(approvalId: string, decision: "approved" | "denied
     return;
   }
 
-  const { result, ok } = await executeApprovedCall(supabase, approval);
+  const { result, ok, shieldNote, original } = await executeApprovedCall(
+    supabase,
+    projectId,
+    approval,
+  );
+  // The agent polling the ticket receives the screened result; the audit row
+  // keeps the original so the operator can inspect quarantined content.
   await supabase.from("approvals").update({ result }).eq("id", approvalId);
   if (approval.audit_id) {
     await supabase
       .from("audit_log")
       .update({
-        status: ok ? "approved" : "error",
+        status: ok ? "approved" : shieldNote ? "blocked" : "error",
         approver,
         decided_via: "dashboard",
         reason: ok
-          ? "Approved — executed against the source MCP."
-          : "Approved, but execution failed.",
-        result,
+          ? `Approved — executed against the source MCP.${shieldNote ? ` ${shieldNote}` : ""}`
+          : shieldNote ?? "Approved, but execution failed.",
+        result: original ?? result,
       })
       .eq("id", approval.audit_id);
   }
@@ -397,14 +653,70 @@ export async function createAgentAction(name: string): Promise<{ key: string }> 
     key_hash: keyHash,
     key_preview: key.slice(-4),
   });
-  revalidatePath("/dashboard/agents");
+  await logAdminEvent(supabase, projectId, {
+    target: name.trim() || "New agent",
+    detail: `Created agent "${name.trim() || "New agent"}" and issued a key.`,
+  });
+  revalidatePath("/dashboard", "layout");
   return { key };
 }
 
 export async function deleteAgentAction(agentId: string) {
   const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+  const { data: agent } = await supabase
+    .from("agents")
+    .select("name")
+    .eq("id", agentId)
+    .maybeSingle();
   await supabase.from("agents").delete().eq("id", agentId);
-  revalidatePath("/dashboard/agents");
+  if (agent) {
+    await logAdminEvent(supabase, projectId, {
+      target: agent.name,
+      detail: `Deleted agent "${agent.name}" — its key stopped working immediately.`,
+    });
+  }
+  revalidatePath("/dashboard", "layout");
+}
+
+// ---------- runners ----------
+
+/** Pair a local runner: returns the token once — only its hash is stored. */
+export async function pairRunnerAction(name: string): Promise<{ token: string }> {
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+  const token = `prt_live_${randomBytes(24).toString("hex")}`;
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+
+  await supabase.from("runners").insert({
+    project_id: projectId,
+    name: name.trim() || "My machine",
+    token_hash: tokenHash,
+  });
+  await logAdminEvent(supabase, projectId, {
+    target: name.trim() || "My machine",
+    detail: `Paired local runner "${name.trim() || "My machine"}" and issued a token.`,
+  });
+  revalidatePath("/dashboard", "layout");
+  return { token };
+}
+
+export async function deleteRunnerAction(runnerId: string) {
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+  const { data: runner } = await supabase
+    .from("runners")
+    .select("name")
+    .eq("id", runnerId)
+    .maybeSingle();
+  await supabase.from("runners").delete().eq("id", runnerId);
+  if (runner) {
+    await logAdminEvent(supabase, projectId, {
+      target: runner.name,
+      detail: `Unpaired local runner "${runner.name}" — its token stopped working immediately.`,
+    });
+  }
+  revalidatePath("/dashboard", "layout");
 }
 
 export async function signOutAction() {

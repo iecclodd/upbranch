@@ -15,5 +15,6 @@ export function decisionTone(decision: PolicyDecision): Tone {
 export function statusTone(status: AuditStatus): Tone {
   if (status === "allowed" || status === "approved") return "good";
   if (status === "denied" || status === "blocked" || status === "error") return "bad";
+  if (status === "info") return "neutral";
   return "review";
 }

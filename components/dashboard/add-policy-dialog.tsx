@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useState, useTransition } from "react";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { createPolicyAction } from "@/app/dashboard/actions";
-import { GlassCard } from "@/components/dashboard/primitives";
+import { Modal, ModalHeader } from "@/components/dashboard/modal";
 import type { PolicyDecision } from "@/lib/dashboard/types";
 import { cn } from "@/lib/utils";
 
@@ -66,34 +66,14 @@ function AddPolicyDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Add policy"
-      onClick={onClose}
-    >
-      <GlassCard className="w-full max-w-lg bg-white/95 p-6">
-        <div onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Add policy</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Evaluated on every call to the tool. The strictest applicable
-                policy wins.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-ink/5"
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
+    <Modal onClose={onClose} ariaLabel="Add policy">
+      <ModalHeader
+        title="Add policy"
+        subtitle="Evaluated on every call to the tool. The strictest applicable policy wins."
+        onClose={onClose}
+      />
 
-          <form onSubmit={onSubmit} className="mt-5 space-y-4">
+      <form onSubmit={onSubmit} className="mt-5 space-y-4">
             <div>
               <label htmlFor="p-tool" className="text-sm font-medium text-foreground">
                 Tool
@@ -175,26 +155,24 @@ function AddPolicyDialog({
               </p>
             ) : null}
 
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-full border border-ink/15 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-ink/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={pending}
-                className="flex items-center gap-2 rounded-full bg-violet px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-deep disabled:opacity-70"
-              >
-                {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Add policy
-              </button>
-            </div>
-          </form>
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-ink/15 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-ink/5"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={pending}
+            className="flex items-center gap-2 rounded-full bg-violet px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-deep disabled:opacity-70"
+          >
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Add policy
+          </button>
         </div>
-      </GlassCard>
-    </div>
+      </form>
+    </Modal>
   );
 }

@@ -1,10 +1,13 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+
+const TERMS_VERSION = "2026-06-11";
 
 const GoogleIcon = () => (
   <svg className="h-5 w-5" viewBox="0 0 48 48" aria-hidden="true">
@@ -36,6 +39,7 @@ export function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,13 +48,24 @@ export function SignInForm() {
     event.preventDefault();
     setError(null);
     setNotice(null);
+
+    if (mode === "signup" && !accepted) {
+      return setError("Please accept the Terms of Service and Privacy Policy to create an account.");
+    }
     setLoading(true);
 
     if (mode === "signup") {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          // Acceptance is recorded on the account itself, not just client-side.
+          data: {
+            accepted_terms_at: new Date().toISOString(),
+            accepted_terms_version: TERMS_VERSION,
+          },
+        },
       });
       setLoading(false);
       if (error) return setError(error.message);
@@ -93,6 +108,17 @@ export function SignInForm() {
         <GoogleIcon />
         Continue with Google
       </button>
+      <p className="mt-2.5 text-center text-xs text-muted-foreground">
+        By continuing you agree to the{" "}
+        <Link href="/terms" target="_blank" className="underline hover:text-foreground">
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" target="_blank" className="underline hover:text-foreground">
+          Privacy Policy
+        </Link>
+        .
+      </p>
 
       <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
         <span className="h-px flex-1 bg-ink/10" />
@@ -147,6 +173,31 @@ export function SignInForm() {
             </button>
           </div>
         </div>
+
+        {mode === "signup" ? (
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm text-foreground/80">
+            <input
+              type="checkbox"
+              checked={accepted}
+              onChange={(e) => {
+                setAccepted(e.target.checked);
+                setError(null);
+              }}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-ink/20 accent-violet"
+            />
+            <span>
+              I agree to the{" "}
+              <Link href="/terms" target="_blank" className="font-medium text-violet hover:underline">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" target="_blank" className="font-medium text-violet hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+        ) : null}
 
         {error ? (
           <p className="text-sm text-[#B3266C]" role="alert">

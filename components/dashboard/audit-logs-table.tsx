@@ -9,8 +9,12 @@ import type { AuditEntry, AuditStatus } from "@/lib/dashboard/types";
 import { GlassCard, StatusBadge } from "@/components/dashboard/primitives";
 import { cn } from "@/lib/utils";
 
-const FILTERS: Array<{ label: string; value: AuditStatus | "all" }> = [
+type Filter = AuditStatus | "all" | "tool_calls" | "admin";
+
+const FILTERS: Array<{ label: string; value: Filter }> = [
   { label: "All", value: "all" },
+  { label: "Tool calls", value: "tool_calls" },
+  { label: "Admin", value: "admin" },
   { label: "Allowed", value: "allowed" },
   { label: "Waiting", value: "waiting_for_approval" },
   { label: "Approved", value: "approved" },
@@ -27,7 +31,7 @@ export function AuditLogsTable({
   serverNames: Record<string, string>;
 }) {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<AuditStatus | "all">("all");
+  const [filter, setFilter] = useState<Filter>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -37,7 +41,14 @@ export function AuditLogsTable({
         !q ||
         e.exposedTool.toLowerCase().includes(q) ||
         e.agent.toLowerCase().includes(q);
-      const matchFilter = filter === "all" || e.status === filter;
+      const matchFilter =
+        filter === "all"
+          ? true
+          : filter === "admin"
+            ? e.eventType === "admin"
+            : filter === "tool_calls"
+              ? e.eventType !== "admin"
+              : e.eventType !== "admin" && e.status === filter;
       return matchQuery && matchFilter;
     });
   }, [entries, query, filter]);
@@ -126,15 +137,22 @@ export function AuditLogsTable({
                     <time className="hidden w-20 shrink-0 font-mono text-xs text-muted-foreground sm:block">
                       {formatTime(entry.timestamp)}
                     </time>
-                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] font-semibold text-foreground">
-                      {entry.exposedTool}
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground",
+                        entry.eventType === "admin" ? "" : "font-mono",
+                      )}
+                    >
+                      {entry.eventType === "admin" && entry.reason
+                        ? entry.reason
+                        : entry.exposedTool}
                     </span>
                     <span className="hidden shrink-0 text-sm text-muted-foreground md:block">
                       {serverNames[entry.serverId] ?? "—"}
                     </span>
                     <StatusBadge
-                      label={entry.status}
-                      tone={statusTone(entry.status)}
+                      label={entry.eventType === "admin" ? "admin" : entry.status}
+                      tone={entry.eventType === "admin" ? "violet" : statusTone(entry.status)}
                       className="shrink-0"
                     />
                   </button>
@@ -149,25 +167,37 @@ export function AuditLogsTable({
                         className="overflow-hidden bg-ink/[0.02]"
                       >
                         <div className="grid gap-4 px-6 py-4 sm:grid-cols-2">
-                          <Detail label="Agent" value={entry.agent} mono />
                           <Detail
-                            label="Source MCP"
-                            value={serverNames[entry.serverId] ?? "—"}
+                            label={entry.eventType === "admin" ? "Actor" : "Agent"}
+                            value={entry.agent}
+                            mono
                           />
-                          <Detail label="Decision">
-                            <StatusBadge
-                              label={entry.decision}
-                              tone={decisionTone(entry.decision)}
-                            />
-                          </Detail>
                           <Detail
-                            label="Approver"
+                            label={entry.eventType === "admin" ? "Target" : "Source MCP"}
                             value={
-                              entry.approver
-                                ? `${entry.approver}${entry.decidedVia ? ` (via ${entry.decidedVia})` : ""}`
-                                : "—"
+                              entry.eventType === "admin"
+                                ? entry.exposedTool
+                                : serverNames[entry.serverId] ?? "—"
                             }
                           />
+                          {entry.eventType !== "admin" ? (
+                            <Detail label="Decision">
+                              <StatusBadge
+                                label={entry.decision}
+                                tone={decisionTone(entry.decision)}
+                              />
+                            </Detail>
+                          ) : null}
+                          {entry.eventType !== "admin" ? (
+                            <Detail
+                              label="Approver"
+                              value={
+                                entry.approver
+                                  ? `${entry.approver}${entry.decidedVia ? ` (via ${entry.decidedVia})` : ""}`
+                                  : "—"
+                              }
+                            />
+                          ) : null}
                           <div className="sm:col-span-2">
                             <Detail label="Reason" value={entry.reason ?? "—"} />
                           </div>

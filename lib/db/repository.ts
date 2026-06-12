@@ -8,6 +8,7 @@ import type {
   McpServer,
   Policy,
   Project,
+  Runner,
   UsageSnapshot,
 } from "@/lib/dashboard/types";
 
@@ -28,6 +29,7 @@ type ServerRow = {
   status: string;
   transport: McpServer["transport"];
   description: string;
+  shield_mode: string | null;
   last_action_at: string | null;
 };
 
@@ -39,9 +41,13 @@ function mapServer(r: ServerRow): McpServer {
     status: r.status as McpServer["status"],
     transport: r.transport,
     description: r.description,
+    shieldMode: (r.shield_mode ?? "flag") as McpServer["shieldMode"],
     lastActionAt: ms(r.last_action_at),
   };
 }
+
+/** A runner is "online" while its heartbeat is fresher than this. */
+const RUNNER_ONLINE_WINDOW_MS = 90_000;
 
 // ---------- workspace ----------
 
@@ -90,10 +96,32 @@ export async function listServers(projectId: string): Promise<McpServer[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("mcp_servers")
-    .select("id, name, prefix, status, transport, description, last_action_at")
+    .select("id, name, prefix, status, transport, description, shield_mode, last_action_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: true });
   return (data ?? []).map((r) => mapServer(r as ServerRow));
+}
+
+export async function listRunners(projectId: string): Promise<Runner[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("runners")
+    .select("id, name, hostname, version, last_seen_at, created_at")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: true });
+  const now = Date.now();
+  return (data ?? []).map((r) => {
+    const lastSeenAt = ms(r.last_seen_at);
+    return {
+      id: r.id,
+      name: r.name,
+      hostname: r.hostname,
+      version: r.version,
+      online: lastSeenAt !== null && now - lastSeenAt < RUNNER_ONLINE_WINDOW_MS,
+      lastSeenAt,
+      createdAt: Date.parse(r.created_at),
+    };
+  });
 }
 
 export async function listTools(projectId: string): Promise<CatalogTool[]> {
@@ -168,6 +196,7 @@ export async function listAudit(projectId: string): Promise<AuditEntry[]> {
   return (data ?? []).map((r) => ({
     id: r.id,
     timestamp: Date.parse(r.created_at),
+    eventType: (r.event_type ?? "tool_call") as AuditEntry["eventType"],
     agent: r.agent,
     serverId: r.server_id ?? "",
     exposedTool: r.exposed_tool,

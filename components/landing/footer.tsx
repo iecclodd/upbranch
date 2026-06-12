@@ -6,6 +6,8 @@ const footerLinks = [
   { label: "Security", href: "#security" },
   { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
+  { label: "Terms", href: "/terms" },
+  { label: "Privacy", href: "/privacy" },
   { label: "Contact", href: "mailto:hello@polyshield.ai" },
 ];
 

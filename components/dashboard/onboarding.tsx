@@ -25,7 +25,7 @@ export function OnboardingChecklist({
     {
       done: hasServer,
       title: "Connect an MCP server",
-      body: "Add a remote HTTP MCP server. Polyshield discovers its tools and auto-gates the risky ones.",
+      body: "Add a remote HTTP server or a local stdio one (via the local runner). Polyshield discovers its tools and auto-gates the risky ones.",
       href: "/dashboard/servers",
       cta: "Add server",
     },

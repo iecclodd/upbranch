@@ -50,6 +50,11 @@ export function ConnectSnippet({ gatewayUrl }: { gatewayUrl: string }) {
         </pre>
         <CopyButton value={cliSnippet} label="Copy Claude Code command" />
       </div>
+      <p className="text-xs text-muted-foreground">
+        Exposing or hiding a tool takes effect live — the gateway pushes a
+        tools-list-changed notification so connected clients refresh without a
+        restart.
+      </p>
     </div>
   );
 }

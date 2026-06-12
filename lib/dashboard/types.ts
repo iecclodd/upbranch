@@ -11,18 +11,19 @@ export type McpServerStatus = "connected" | "connecting" | "pending" | "error";
 
 /**
  * Local stdio servers are launched and supervised by the Polyshield local
- * runner. The runner dials OUT to the Polyshield control plane and only
- * accepts jobs from it — agents never connect to the runner directly, so the
- * policy decision point stays off the agent's machine. Until the runner
- * ships, stdio servers register with status "pending" and expose no tools.
+ * runner (polyshield-runner). The runner dials OUT to the control plane and
+ * only executes jobs the policy engine already allowed — agents never
+ * connect to the runner directly, so the policy decision point stays off the
+ * agent's machine. A stdio server registers as "pending" and flips to
+ * "connected" once a paired runner launches it and reports its tools.
  */
 export interface StdioTransport {
   type: "stdio";
   command: string;
   args: string[];
   /**
-   * Masked for display. Raw values never reach Polyshield's database — stdio
-   * credentials will live with the local runner on the user's machine.
+   * Masked for display. Raw values are AES-256-GCM encrypted in the vault
+   * (server_secrets, name "env:KEY") and released only to a paired runner.
    */
   env: Record<string, string>;
   /** Host env var names forwarded to the child process unchanged. */
@@ -43,6 +44,12 @@ export interface HttpTransport {
 
 export type TransportConfig = StdioTransport | HttpTransport;
 
+/**
+ * Prompt-injection shield mode per server. Downstream results are scanned;
+ * "flag" prepends a warning to suspicious output, "block" withholds it.
+ */
+export type ShieldMode = "off" | "flag" | "block";
+
 export interface McpServer {
   id: string;
   name: string;
@@ -51,7 +58,24 @@ export interface McpServer {
   status: McpServerStatus;
   transport: TransportConfig;
   description: string;
+  shieldMode: ShieldMode;
   lastActionAt: number | null;
+}
+
+/**
+ * A paired local runner: the daemon on the user's machine that launches stdio
+ * MCP servers and executes their tool calls as jobs. Auth mirrors agents —
+ * only a SHA-256 hash of the pairing token is stored.
+ */
+export interface Runner {
+  id: string;
+  name: string;
+  hostname: string | null;
+  version: string | null;
+  /** Derived: online iff last_seen_at is fresher than ~90s. */
+  online: boolean;
+  lastSeenAt: number | null;
+  createdAt: number;
 }
 
 /** A tool exactly as a downstream MCP server reports it via tools/list. */
@@ -122,11 +146,20 @@ export type AuditStatus =
   | "waiting_for_approval"
   | "approved"
   | "blocked"
-  | "error";
+  | "error"
+  | "info";
+
+/**
+ * tool_call: an agent's call through the gateway. admin: a control-plane
+ * change made in the dashboard (server added, tool toggled, policy edited…),
+ * recorded with status "info" and the acting user in `agent`.
+ */
+export type AuditEventType = "tool_call" | "admin";
 
 export interface AuditEntry {
   id: string;
   timestamp: number;
+  eventType: AuditEventType;
   agent: string;
   serverId: string;
   exposedTool: string;

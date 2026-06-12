@@ -1,3 +1,5 @@
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import type { RawTool } from "@/lib/dashboard/types";
 
 /**
@@ -8,6 +10,71 @@ import type { RawTool } from "@/lib/dashboard/types";
  */
 
 const PROTOCOL_VERSION = "2025-03-26";
+
+/**
+ * SSRF guard. A registered endpoint is fully user-controlled and is fetched
+ * server-side by the gateway, so without this a tenant could point it at
+ * internal infrastructure or cloud metadata (169.254.169.254) and use
+ * Polyshield as a confused deputy. We require http(s) and refuse any host
+ * that resolves to a private, loopback, or link-local address. Self-hosters
+ * who genuinely run MCPs on a private network can opt out with
+ * POLYSHIELD_ALLOW_PRIVATE_MCP=1.
+ */
+function ipIsPrivate(ip: string): boolean {
+  const v = isIP(ip);
+  if (v === 4) {
+    const p = ip.split(".").map(Number);
+    if (p.length !== 4 || p.some((n) => Number.isNaN(n))) return true;
+    const [a, b] = p;
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) || // link-local incl. cloud metadata
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 100 && b >= 64 && b <= 127) || // CGNAT
+      a >= 224 // multicast / reserved
+    );
+  }
+  const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  if (lower === "::1" || lower === "::" ) return true;
+  if (lower.startsWith("fe80") || lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d)
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return ipIsPrivate(mapped[1]);
+  return false;
+}
+
+async function assertPublicUrl(endpoint: string): Promise<void> {
+  if (process.env.POLYSHIELD_ALLOW_PRIVATE_MCP === "1") return;
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new McpClientError("Invalid endpoint URL.");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new McpClientError("Only http(s) MCP endpoints are allowed.");
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  if (host.toLowerCase() === "localhost") {
+    throw new McpClientError("Endpoint host is not permitted.");
+  }
+  if (isIP(host)) {
+    if (ipIsPrivate(host)) throw new McpClientError("Endpoint host is not permitted.");
+    return;
+  }
+  let addresses: Array<{ address: string }>;
+  try {
+    addresses = await lookup(host, { all: true });
+  } catch {
+    throw new McpClientError("Could not resolve the MCP server host.");
+  }
+  if (addresses.length === 0 || addresses.some((a) => ipIsPrivate(a.address))) {
+    throw new McpClientError("Endpoint host is not permitted.");
+  }
+}
 
 interface JsonRpcMessage {
   jsonrpc: "2.0";
@@ -79,6 +146,7 @@ export class McpHttpClient {
   private sessionId: string | null = null;
   private protocolVersion = PROTOCOL_VERSION;
   private nextId = 1;
+  private urlVerified = false;
 
   constructor(
     private endpoint: string,
@@ -97,6 +165,11 @@ export class McpHttpClient {
   }
 
   private async post(payload: unknown, timeoutMs: number): Promise<Response> {
+    // Validate once per client; the endpoint is fixed for its lifetime.
+    if (!this.urlVerified) {
+      await assertPublicUrl(this.endpoint);
+      this.urlVerified = true;
+    }
     try {
       return await fetch(this.endpoint, {
         method: "POST",

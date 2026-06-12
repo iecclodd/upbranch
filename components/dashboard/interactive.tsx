@@ -1,15 +1,17 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import {
   approveAction,
   denyAction,
   deletePolicyAction,
   setPolicyDecisionAction,
+  setShieldModeAction,
   toggleToolAction,
 } from "@/app/dashboard/actions";
-import type { PolicyDecision } from "@/lib/dashboard/types";
+import { ConfirmDialog } from "@/components/dashboard/modal";
+import type { PolicyDecision, ShieldMode } from "@/lib/dashboard/types";
 import { cn } from "@/lib/utils";
 
 /** Expose/hide a tool to the agent. */
@@ -86,21 +88,68 @@ export function DeletePolicyButton({
   policyId: string;
   label: string;
 }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600"
+        aria-label={`Delete policy on ${label}`}
+      >
+        <Trash2 className="h-4 w-4" aria-hidden="true" />
+      </button>
+      {open ? (
+        <ConfirmDialog
+          title="Delete this policy?"
+          body={`Calls to ${label} fall back to the tool's default behavior.`}
+          confirmLabel="Delete policy"
+          onConfirm={() => deletePolicyAction(policyId)}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+const SHIELD_MODES: Array<{ value: ShieldMode; label: string }> = [
+  { value: "off", label: "Shield off" },
+  { value: "flag", label: "Shield: flag" },
+  { value: "block", label: "Shield: block" },
+];
+
+/**
+ * Per-server prompt-injection shield. flag prepends a warning to suspicious
+ * tool output; block withholds it entirely.
+ */
+export function ShieldModeSelect({
+  serverId,
+  mode,
+  label,
+}: {
+  serverId: string;
+  mode: ShieldMode;
+  label: string;
+}) {
   const [pending, start] = useTransition();
   return (
-    <button
-      type="button"
+    <select
+      value={mode}
       disabled={pending}
-      onClick={() => {
-        if (confirm(`Delete the policy on ${label}? The tool falls back to its default.`)) {
-          start(() => deletePolicyAction(policyId));
-        }
-      }}
-      className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-rose-500/10 hover:text-rose-600 disabled:opacity-50"
-      aria-label={`Delete policy on ${label}`}
+      aria-label={`Prompt-injection shield for ${label}`}
+      onChange={(e) =>
+        start(async () => {
+          await setShieldModeAction(serverId, e.target.value as ShieldMode);
+        })
+      }
+      className="rounded-lg border border-ink/10 bg-white px-2 py-1 text-xs font-medium text-foreground/80 outline-none transition focus:border-violet/40 focus:ring-4 focus:ring-violet/10 disabled:opacity-60"
     >
-      <Trash2 className="h-4 w-4" aria-hidden="true" />
-    </button>
+      {SHIELD_MODES.map((m) => (
+        <option key={m.value} value={m.value}>
+          {m.label}
+        </option>
+      ))}
+    </select>
   );
 }
 
