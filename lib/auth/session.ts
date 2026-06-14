@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Profile, Plan } from "@/lib/dashboard/types";
+import type { Plan, PlanStatus, Profile } from "@/lib/dashboard/types";
+
+const ms = (t: string | null | undefined): number | null => (t ? Date.parse(t) : null);
 
 /** Current signed-in user, or null. */
 export async function getUser() {
@@ -21,7 +23,7 @@ export async function getProfile(): Promise<Profile | null> {
 
   const { data } = await supabase
     .from("profiles")
-    .select("id, email, full_name, avatar_url, plan")
+    .select("id, email, full_name, avatar_url, plan, plan_status, current_period_end, stripe_customer_id")
     .eq("id", user.id)
     .single();
 
@@ -32,6 +34,9 @@ export async function getProfile(): Promise<Profile | null> {
       fullName: (user.user_metadata?.full_name as string) ?? null,
       avatarUrl: (user.user_metadata?.avatar_url as string) ?? null,
       plan: "free",
+      planStatus: "active",
+      currentPeriodEnd: null,
+      hasBilling: false,
     };
   }
 
@@ -41,6 +46,9 @@ export async function getProfile(): Promise<Profile | null> {
     fullName: data.full_name,
     avatarUrl: data.avatar_url,
     plan: (data.plan as Plan) ?? "free",
+    planStatus: (data.plan_status as PlanStatus) ?? "active",
+    currentPeriodEnd: ms(data.current_period_end),
+    hasBilling: Boolean(data.stripe_customer_id),
   };
 }
 

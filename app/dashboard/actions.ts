@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { maskSecret } from "@/lib/dashboard/format";
 import { exposedName, isRiskyRawTool } from "@/lib/gateway/tools";
 import { isParseableCondition } from "@/lib/gateway/policy";
-import { applyShield, describeScan, scanToolResult } from "@/lib/gateway/shield";
+import { applyShield, describeScan, scanToolDefinition, scanToolResult } from "@/lib/gateway/shield";
 import {
   discoverHttpTools,
   McpHttpClient,
@@ -15,11 +15,14 @@ import {
   type McpToolResult,
 } from "@/lib/mcp/client";
 import { decryptSecret, encryptSecret } from "@/lib/vault";
-import type {
-  PolicyDecision,
-  RawTool,
-  ShieldMode,
-  TransportConfig,
+import { registryEntry } from "@/lib/registry/catalog";
+import {
+  DEFAULT_SANDBOX_PROFILE,
+  type PolicyDecision,
+  type RawTool,
+  type SandboxProfile,
+  type ShieldMode,
+  type TransportConfig,
 } from "@/lib/dashboard/types";
 
 export interface ActionResult {
@@ -173,16 +176,27 @@ export async function addServerAction(input: {
     }
 
     if (tools.length > 0) {
+      // Tool-poisoning scan: a malicious server can hide instructions in a
+      // tool's name/description/schema. High-risk tools land DISABLED.
       await supabase.from("catalog_tools").insert(
-        tools.map((raw) => ({
-          project_id: projectId,
-          server_id: server.id,
-          raw_name: raw.name,
-          raw_description: raw.description,
-          input_schema: raw.inputSchema,
-          exposed_name: exposedName(prefix, raw.name),
-          enabled: true,
-        })),
+        tools.map((raw) => {
+          const scan = scanToolDefinition({
+            name: raw.name,
+            description: raw.description,
+            inputSchema: raw.inputSchema,
+          });
+          return {
+            project_id: projectId,
+            server_id: server.id,
+            raw_name: raw.name,
+            raw_description: raw.description,
+            input_schema: raw.inputSchema,
+            exposed_name: exposedName(prefix, raw.name),
+            enabled: scan.risk !== "high",
+            risk: scan.risk,
+            risk_detail: scan.detail ?? null,
+          };
+        }),
       );
       const risky = tools.filter((raw) => isRiskyRawTool(raw.name));
       if (risky.length > 0) {
@@ -266,6 +280,99 @@ export async function addServerAction(input: {
   return {};
 }
 
+/**
+ * One-click install from the MCP registry: registers the stdio server with its
+ * recommended sandbox profile, vaults any env secrets, and lays down the
+ * pre-built starter policies so the risky tools are gated before the runner
+ * even launches it.
+ */
+export async function addFromRegistryAction(input: {
+  registryId: string;
+  prefix?: string;
+  env?: Record<string, string>;
+}): Promise<ActionResult> {
+  const entry = registryEntry(input.registryId);
+  if (!entry) return { error: "Unknown registry entry." };
+
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+
+  // Pick a free prefix (append a number if the default is taken).
+  const base = (input.prefix?.trim().toLowerCase() || entry.defaultPrefix).replace(/[^a-z0-9_]/g, "");
+  if (!/^[a-z][a-z0-9_]*$/.test(base)) return { error: "Invalid namespace." };
+  const { data: existing } = await supabase
+    .from("mcp_servers")
+    .select("prefix")
+    .eq("project_id", projectId);
+  const taken = new Set((existing ?? []).map((s) => s.prefix));
+  let prefix = base;
+  for (let i = 2; taken.has(prefix); i++) prefix = `${base}${i}`;
+
+  // Encrypt provided env secrets before any write (fail closed on no vault key).
+  const envEntries = Object.entries(input.env ?? {}).filter(([k, v]) => k && v);
+  let envSecrets: Array<{ name: string; ciphertext: string }> = [];
+  if (envEntries.length > 0) {
+    try {
+      envSecrets = envEntries.map(([k, v]) => ({ name: `env:${k}`, ciphertext: encryptSecret(v) }));
+    } catch {
+      return { error: "Credential vault is not configured (POLYSHIELD_VAULT_KEY)." };
+    }
+  }
+
+  const sandbox: SandboxProfile = { ...DEFAULT_SANDBOX_PROFILE, ...entry.recommendedSandbox };
+  const transport: TransportConfig = {
+    type: "stdio",
+    command: entry.command,
+    args: entry.args,
+    env: Object.fromEntries(envEntries.map(([k, v]) => [k, maskSecret(v)])),
+    envPassthrough: ["PATH"],
+  };
+
+  const { data: server, error } = await supabase
+    .from("mcp_servers")
+    .insert({
+      project_id: projectId,
+      name: entry.name,
+      prefix,
+      kind: "remote",
+      status: "pending",
+      transport,
+      sandbox_profile: sandbox,
+      origin: "registry",
+      registry_id: entry.id,
+      description: `${entry.name} — added from the registry. Start the Polyshield runner to connect it.`,
+    })
+    .select("id")
+    .single();
+  if (error || !server) return { error: "Could not add the server." };
+
+  if (envSecrets.length > 0) {
+    await supabase.from("server_secrets").insert(
+      envSecrets.map((s) => ({ project_id: projectId, server_id: server.id, name: s.name, ciphertext: s.ciphertext })),
+    );
+  }
+
+  if (entry.recommendedPolicies.length > 0) {
+    await supabase.from("policies").insert(
+      entry.recommendedPolicies.map((p) => ({
+        project_id: projectId,
+        server_id: server.id,
+        exposed_tool: `${prefix}.${p.tool}`,
+        decision: p.decision,
+        description: p.description,
+      })),
+    );
+  }
+
+  await logAdminEvent(supabase, projectId, {
+    serverId: server.id,
+    target: entry.name,
+    detail: `Installed "${entry.name}" from the registry (${prefix}.*) with ${entry.recommendedPolicies.length} starter policies.`,
+  });
+  revalidatePath("/dashboard", "layout");
+  return {};
+}
+
 export async function deleteServerAction(serverId: string) {
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
@@ -304,6 +411,99 @@ export async function setShieldModeAction(
       detail: `Prompt-injection shield on "${server.name}" set to ${mode}.`,
     });
   }
+  revalidatePath("/dashboard", "layout");
+  return {};
+}
+
+export async function setSandboxProfileAction(
+  serverId: string,
+  profile: SandboxProfile,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+
+  // Normalize/validate so a malformed client payload can't widen the sandbox.
+  const clean: SandboxProfile = {
+    fsScope: (Array.isArray(profile.fsScope) ? profile.fsScope : [])
+      .map((p) => String(p).trim())
+      .filter(Boolean)
+      .slice(0, 20),
+    egress: {
+      mode: (["inherit", "none", "allowlist"] as const).includes(profile.egress?.mode)
+        ? profile.egress.mode
+        : "inherit",
+      allow: (Array.isArray(profile.egress?.allow) ? profile.egress.allow : [])
+        .map((d) => String(d).trim())
+        .filter(Boolean)
+        .slice(0, 50),
+    },
+    limits: {
+      wallMs: clampInt(profile.limits?.wallMs, 1000, 600000, 60000),
+      memMB: profile.limits?.memMB ? clampInt(profile.limits.memMB, 64, 16384, 512) : undefined,
+    },
+    snapshotBeforeWrite: profile.snapshotBeforeWrite === true,
+    dryRunOnApproval: profile.dryRunOnApproval === true,
+    stripEnv: profile.stripEnv === true,
+    containerize: profile.containerize === true,
+  };
+
+  const { data: server } = await supabase
+    .from("mcp_servers")
+    .update({ sandbox_profile: clean })
+    .eq("id", serverId)
+    .select("name")
+    .maybeSingle();
+  if (server) {
+    await logAdminEvent(supabase, projectId, {
+      serverId,
+      target: server.name,
+      detail: `Sandbox profile updated for "${server.name}" (scope: ${clean.fsScope.length || "none"}, egress: ${clean.egress.mode}, snapshots: ${clean.snapshotBeforeWrite ? "on" : "off"}).`,
+    });
+  }
+  revalidatePath("/dashboard", "layout");
+  return {};
+}
+
+function clampInt(v: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+/** Save (or clear) the Slack incoming-webhook for approval notifications. */
+export async function setSlackWebhookAction(url: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+  const trimmed = url.trim();
+  if (trimmed && !/^https:\/\/hooks\.slack\.com\/services\//.test(trimmed)) {
+    return { error: "That doesn't look like a Slack incoming webhook (https://hooks.slack.com/services/…)." };
+  }
+  let ciphertext: string | null = null;
+  if (trimmed) {
+    try {
+      ciphertext = encryptSecret(trimmed);
+    } catch {
+      return { error: "Credential vault is not configured (POLYSHIELD_VAULT_KEY)." };
+    }
+  }
+  await supabase.from("projects").update({ slack_webhook_ciphertext: ciphertext }).eq("id", projectId);
+  await logAdminEvent(supabase, projectId, {
+    target: "Slack",
+    detail: trimmed ? "Connected a Slack webhook for approval notifications." : "Disconnected the Slack webhook.",
+  });
+  revalidatePath("/dashboard", "layout");
+  return {};
+}
+
+/** Toggle offline/privacy mode — redact tool args/results from the audit log. */
+export async function setPrivacyModeAction(enabled: boolean): Promise<ActionResult> {
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+  await supabase.from("projects").update({ privacy_mode: enabled }).eq("id", projectId);
+  await logAdminEvent(supabase, projectId, {
+    target: "privacy mode",
+    detail: `Offline/privacy mode turned ${enabled ? "on" : "off"} — tool args/results ${enabled ? "are now redacted from" : "are now stored in"} the audit log.`,
+  });
   revalidatePath("/dashboard", "layout");
   return {};
 }
@@ -425,6 +625,7 @@ async function executeApprovedStdio(
   serverId: string,
   rawName: string,
   args: Record<string, unknown>,
+  meta: Record<string, unknown> = {},
 ): Promise<{ result: McpToolResult; ok: boolean }> {
   const freshAfter = new Date(Date.now() - 90_000).toISOString();
   const { data: online } = await supabase
@@ -448,6 +649,8 @@ async function executeApprovedStdio(
       raw_name: rawName,
       args,
       agent: "approval-execute",
+      kind: "call",
+      meta,
     })
     .select("id")
     .single();
@@ -498,7 +701,7 @@ async function executeApprovedCall(
 
   const { data: server } = await supabase
     .from("mcp_servers")
-    .select("id, transport, shield_mode")
+    .select("id, transport, shield_mode, sandbox_profile")
     .eq("id", approval.server_id)
     .maybeSingle();
   if (!server) return failureResult("The source server no longer exists.");
@@ -533,12 +736,23 @@ async function executeApprovedCall(
       );
     }
   } else {
+    // Snapshot before an approved destructive call so the operator can undo it.
+    const sandbox = (server.sandbox_profile ?? {}) as Partial<SandboxProfile>;
+    const meta =
+      sandbox.snapshotBeforeWrite && isRiskyRawTool(tool.raw_name)
+        ? {
+            snapshot: true,
+            label: `before ${approval.exposed_tool} (approved)`,
+            fsScope: sandbox.fsScope ?? [],
+          }
+        : {};
     executed = await executeApprovedStdio(
       supabase,
       projectId,
       server.id,
       tool.raw_name,
       approval.args,
+      meta,
     );
   }
 
@@ -565,7 +779,11 @@ async function executeApprovedCall(
   };
 }
 
-async function decideApproval(approvalId: string, decision: "approved" | "denied") {
+async function decideApproval(
+  approvalId: string,
+  decision: "approved" | "denied",
+  remember = false,
+) {
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
   const {
@@ -610,9 +828,18 @@ async function decideApproval(approvalId: string, decision: "approved" | "denied
     approval,
   );
   // The agent polling the ticket receives the screened result; the audit row
-  // keeps the original so the operator can inspect quarantined content.
+  // keeps the original so the operator can inspect quarantined content —
+  // unless privacy mode is on, in which case the audit result is redacted.
   await supabase.from("approvals").update({ result }).eq("id", approvalId);
   if (approval.audit_id) {
+    const { data: proj } = await supabase
+      .from("projects")
+      .select("privacy_mode")
+      .eq("id", projectId)
+      .maybeSingle();
+    const auditResult = proj?.privacy_mode
+      ? { _redacted: true, bytes: JSON.stringify(original ?? result ?? null).length }
+      : original ?? result;
     await supabase
       .from("audit_log")
       .update({
@@ -622,19 +849,98 @@ async function decideApproval(approvalId: string, decision: "approved" | "denied
         reason: ok
           ? `Approved — executed against the source MCP.${shieldNote ? ` ${shieldNote}` : ""}`
           : shieldNote ?? "Approved, but execution failed.",
-        result: original ?? result,
+        result: auditResult,
       })
       .eq("id", approval.audit_id);
+  }
+
+  // "Remember this rule": stop holding this tool — create an allow policy so
+  // future identical calls pass without an approval. Only if one doesn't
+  // already exist, and only for an unconditional gate (a conditional one stays
+  // as authored). The operator chose this explicitly.
+  if (remember && approval.exposed_tool) {
+    const { data: existingAllow } = await supabase
+      .from("policies")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("exposed_tool", approval.exposed_tool)
+      .eq("decision", "allow")
+      .maybeSingle();
+    if (!existingAllow) {
+      await supabase.from("policies").insert({
+        project_id: projectId,
+        server_id: approval.server_id,
+        exposed_tool: approval.exposed_tool,
+        decision: "allow",
+        description: `Remembered from an approval by ${approver} — auto-allow.`,
+      });
+      await logAdminEvent(supabase, projectId, {
+        serverId: approval.server_id,
+        target: approval.exposed_tool,
+        detail: `Remembered approval as a rule: ${approval.exposed_tool} now auto-allows.`,
+      });
+    }
   }
   revalidatePath("/dashboard", "layout");
 }
 
-export async function approveAction(approvalId: string) {
-  await decideApproval(approvalId, "approved");
+export async function approveAction(approvalId: string, remember = false) {
+  await decideApproval(approvalId, "approved", remember);
 }
 
 export async function denyAction(approvalId: string) {
   await decideApproval(approvalId, "denied");
+}
+
+// ---------- snapshots (undo) ----------
+
+export async function restoreSnapshotAction(snapshotId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+
+  const { data: snap } = await supabase
+    .from("runner_snapshots")
+    .select("id, server_id, ref, scope_path, status, label")
+    .eq("id", snapshotId)
+    .maybeSingle();
+  if (!snap) return { error: "Snapshot not found." };
+  if (!snap.server_id) {
+    return { error: "The source server was removed, so this snapshot can't be restored." };
+  }
+  if (snap.status !== "available") {
+    return { error: "This snapshot can no longer be restored." };
+  }
+
+  const freshAfter = new Date(Date.now() - 90_000).toISOString();
+  const { data: online } = await supabase
+    .from("runners")
+    .select("id")
+    .eq("project_id", projectId)
+    .gt("last_seen_at", freshAfter)
+    .limit(1)
+    .maybeSingle();
+  if (!online) {
+    return { error: "No Polyshield runner is online to restore this snapshot. Start the runner and retry." };
+  }
+
+  // Enqueue a restore job for the runner; mark the snapshot in-flight.
+  await supabase.from("runner_jobs").insert({
+    project_id: projectId,
+    server_id: snap.server_id,
+    raw_name: "__restore__",
+    args: {},
+    agent: "snapshot-restore",
+    kind: "restore",
+    meta: { snapshotId: snap.id, ref: snap.ref, scopePath: snap.scope_path },
+  });
+  await supabase.from("runner_snapshots").update({ status: "restoring" }).eq("id", snap.id);
+  await logAdminEvent(supabase, projectId, {
+    serverId: snap.server_id,
+    target: snap.label || "snapshot",
+    detail: `Restoring snapshot "${snap.label || snap.id}" — reverting the server's filesystem scope.`,
+  });
+  revalidatePath("/dashboard", "layout");
+  return {};
 }
 
 // ---------- agents ----------

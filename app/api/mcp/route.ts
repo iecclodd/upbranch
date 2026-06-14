@@ -1,12 +1,19 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { gatewayClient } from "@/lib/gateway/db";
 import { evaluatePolicy } from "@/lib/gateway/policy";
 import { gatewayProof } from "@/lib/gateway/proof";
-import { applyShield, describeScan, scanToolResult, type ShieldMode } from "@/lib/gateway/shield";
-import { wireName } from "@/lib/gateway/tools";
+import {
+  applyShield,
+  describeScan,
+  markRisky,
+  scanToolResult,
+  type ShieldMode,
+} from "@/lib/gateway/shield";
+import { isIngestionTool, isRiskyRawTool, riskLabel, wireName } from "@/lib/gateway/tools";
+import { notifySlackApproval } from "@/lib/notify/slack";
 import { McpHttpClient, truncateToolResult, type McpToolResult } from "@/lib/mcp/client";
 import { decryptSecret } from "@/lib/vault";
-import type { PolicyDecision, TransportConfig } from "@/lib/dashboard/types";
+import type { PolicyDecision, SandboxProfile, TransportConfig } from "@/lib/dashboard/types";
 
 /**
  * The Polyshield gateway: an MCP server (streamable HTTP) that agents connect
@@ -121,6 +128,7 @@ interface AgentContext {
 interface CallContext {
   found: boolean;
   ambiguous?: boolean;
+  privacy_mode?: boolean;
   tool?: {
     id: string;
     raw_name: string;
@@ -128,6 +136,7 @@ interface CallContext {
     enabled: boolean;
     input_schema: Record<string, unknown>;
   };
+  agent_name?: string;
   server?: {
     id: string;
     name: string;
@@ -135,7 +144,9 @@ interface CallContext {
     status: string;
     transport: TransportConfig;
     shield_mode?: ShieldMode;
+    sandbox_profile?: SandboxProfile;
   };
+  taint?: { tainted: boolean; escalation: boolean };
   policies?: Array<{
     id: string;
     exposed_tool: string;
@@ -144,6 +155,78 @@ interface CallContext {
     description: string;
   }>;
   secrets?: Array<{ name: string; ciphertext: string }>;
+}
+
+/** Sandbox egress is "confined" only when the server declares no network. */
+function isEgressNone(sandbox?: SandboxProfile): boolean {
+  return sandbox?.egress?.mode === "none";
+}
+
+/**
+ * Privacy mode: the gateway must not WRITE tool arguments or results to the
+ * database — only redacted metadata (which keys, how many bytes). Values still
+ * transit in memory (the gateway is the proxy), but nothing sensitive is
+ * persisted at rest. Self-hosting is the path to "never transits the cloud".
+ */
+function redactArgs(args: Record<string, unknown>): Record<string, unknown> {
+  let bytes = 0;
+  try {
+    bytes = JSON.stringify(args).length;
+  } catch {
+    /* ignore */
+  }
+  return { _redacted: true, keys: Object.keys(args), bytes };
+}
+
+function redactResult(result: unknown): Record<string, unknown> {
+  let bytes = 0;
+  try {
+    bytes = JSON.stringify(result ?? null).length;
+  } catch {
+    /* ignore */
+  }
+  return { _redacted: true, bytes };
+}
+
+/** Notify the project's Slack channel that a call is held for approval. */
+async function notifyApprovalToSlack(
+  ctx: AgentContext,
+  tool: string,
+  reason: string,
+  risk: string,
+): Promise<void> {
+  try {
+    const { data } = await ctx.db.rpc("gateway_slack_webhook", { p_key_hash: ctx.keyHash });
+    const cipher = data as string | null;
+    if (!cipher) return;
+    const url = decryptSecret(cipher);
+    const site = process.env.NEXT_PUBLIC_SITE_URL;
+    await notifySlackApproval(url, {
+      tool,
+      agent: ctx.agentName,
+      reason,
+      risk,
+      dashboardUrl: site ? `${site}/dashboard/approvals` : undefined,
+    });
+  } catch {
+    // best effort
+  }
+}
+
+/** Record an untrusted-data event so a later risky call by this agent escalates. */
+async function recordTaint(
+  ctx: AgentContext,
+  kind: "shield_flag" | "untrusted_source",
+  sourceTool: string,
+  detail: string,
+): Promise<void> {
+  await ctx.db.rpc("gateway_record_taint", {
+    p_key_hash: ctx.keyHash,
+    p_kind: kind,
+    p_source_tool: sourceTool,
+    p_detail: detail,
+    p_proof: gatewayProof(),
+  });
 }
 
 async function authenticate(req: Request): Promise<AgentContext | null> {
@@ -178,6 +261,8 @@ async function audit(
     args: Record<string, unknown>;
     reason: string;
     result?: unknown;
+    risk?: string;
+    requestId?: string;
   },
 ): Promise<string | null> {
   const { data } = await ctx.db.rpc("gateway_log", {
@@ -189,6 +274,8 @@ async function audit(
     p_args: entry.args,
     p_reason: entry.reason,
     p_result: entry.result ?? null,
+    p_risk: entry.risk ?? null,
+    p_request_id: entry.requestId ?? null,
     p_proof: gatewayProof(),
   });
   return (data as string | null) ?? null;
@@ -254,12 +341,15 @@ async function executeStdio(
   ctx: AgentContext,
   call: CallContext,
   args: Record<string, unknown>,
+  meta: Record<string, unknown> = {},
 ): Promise<McpToolResult> {
   const { data } = await ctx.db.rpc("gateway_enqueue_job", {
     p_key_hash: ctx.keyHash,
     p_server_id: call.server!.id,
     p_raw_name: call.tool!.raw_name,
     p_args: args,
+    p_kind: "call",
+    p_meta: meta,
     p_proof: gatewayProof(),
   });
   const enqueued = data as { queued: boolean; reason?: string; job_id?: string } | null;
@@ -269,7 +359,7 @@ async function executeStdio(
     // to make. Tell the agent plainly so it can tell the user.
     const text =
       enqueued?.reason === "no_runner"
-        ? "This tool runs on a local stdio MCP server, but no Polyshield local runner is online for this project. Ask the user to start the runner (`npx polyshield-runner start`) and retry."
+        ? "This tool runs on a local stdio MCP server, but no Polyshield local runner is online for this project. Ask the user to start the runner (`npx polyshield start`) and retry."
         : "This stdio server could not accept the call.";
     return { content: [{ type: "text", text }], isError: true };
   }
@@ -335,10 +425,38 @@ async function executeDownstream(
   ctx: AgentContext,
   call: CallContext,
   args: Record<string, unknown>,
+  meta: Record<string, unknown> = {},
 ): Promise<McpToolResult> {
   return call.server!.transport.type === "http"
     ? executeHttp(call, args)
-    : executeStdio(ctx, call, args);
+    : executeStdio(ctx, call, args, meta);
+}
+
+/**
+ * Fire-and-forget dry-run: enqueue a copy-on-write execution whose diff lands
+ * on the approval card (runner_complete_job routes it to approvals.preview).
+ * Only safe for filesystem-confined servers (egress none), so a dry-run can't
+ * trigger a real external side effect. Never blocks the approval response.
+ */
+async function enqueueDryRun(
+  ctx: AgentContext,
+  call: CallContext,
+  args: Record<string, unknown>,
+  approvalId: string,
+): Promise<void> {
+  try {
+    await ctx.db.rpc("gateway_enqueue_job", {
+      p_key_hash: ctx.keyHash,
+      p_server_id: call.server!.id,
+      p_raw_name: call.tool!.raw_name,
+      p_args: args,
+      p_kind: "dryrun",
+      p_meta: { approvalId },
+      p_proof: gatewayProof(),
+    });
+  } catch {
+    // best effort — the approval still works without a preview
+  }
 }
 
 async function handleToolCall(
@@ -373,9 +491,47 @@ async function handleToolCall(
     condition: p.condition,
     description: p.description,
   }));
-  const { decision, policy } = evaluatePolicy(policies, args);
   const exposedTool = call.tool.exposed_name;
   const serverId = call.server.id;
+  const rawName = call.tool.raw_name;
+  const sandbox = call.server.sandbox_profile;
+  const tainted = call.taint?.tainted === true;
+  const requestId = randomUUID();
+  // Privacy mode: redact args/results from the permanent audit log + stored
+  // results. (Pending approvals keep real args — they're a transient surface
+  // the operator opted into, and the args are needed to execute the call.)
+  const privacy = call.privacy_mode === true;
+  const auditArgs = privacy ? redactArgs(args) : args;
+  const logResult = (r: unknown) => (privacy ? redactResult(r) : r);
+
+  // Context injected into the condition language (PRD §10): path-scope and
+  // git-action rules can reference these.
+  const scope = {
+    project_root: sandbox?.fsScope?.[0],
+    action: rawName,
+    tainted,
+    risk: riskLabel(rawName, tainted),
+  };
+  const evaluated = evaluatePolicy(policies, args, scope);
+  let decision = evaluated.decision;
+  const policy = evaluated.policy;
+  let taintEscalated = false;
+
+  // Built-in taint rule: an agent that recently ingested untrusted data and
+  // now wants a risky action gets escalated to human approval, regardless of
+  // its base policy. This is the technical core of prompt-injection defense —
+  // not just scanning the bytes, but gating what the agent does next.
+  if (
+    call.taint?.escalation &&
+    tainted &&
+    isRiskyRawTool(rawName) &&
+    (decision === "allow" || decision === "flag")
+  ) {
+    decision = "require_approval";
+    taintEscalated = true;
+  }
+
+  const risk = riskLabel(rawName, tainted);
 
   if (decision === "deny") {
     await audit(ctx, {
@@ -383,8 +539,10 @@ async function handleToolCall(
       exposedTool,
       decision,
       status: "blocked",
-      args,
+      args: auditArgs,
       reason: policy?.description || "Denied by policy.",
+      risk,
+      requestId,
     });
     return textResult(
       {
@@ -399,24 +557,51 @@ async function handleToolCall(
   }
 
   if (decision === "require_approval") {
+    const heldReason = taintEscalated
+      ? "Escalated to approval: this action follows untrusted data the agent ingested this session."
+      : reason || policy?.description || "Held for approval.";
     const auditId = await audit(ctx, {
       serverId,
       exposedTool,
       decision,
       status: "waiting_for_approval",
-      args,
-      reason: reason || policy?.description || "Held for approval.",
+      args: auditArgs,
+      reason: heldReason,
+      risk,
+      requestId,
     });
     const { data: ticket } = await ctx.db.rpc("gateway_create_approval", {
       p_key_hash: ctx.keyHash,
       p_server_id: serverId,
       p_exposed_tool: exposedTool,
       p_args: args,
-      p_reason: reason || policy?.description || "",
+      p_reason: heldReason,
       p_policy_id: policy?.id ?? null,
       p_audit_id: auditId,
+      p_context: {
+        trustedUserGoal: reason || null,
+        containsUntrustedOutput: tainted,
+        taintEscalated,
+      },
+      p_risk: risk,
       p_proof: gatewayProof(),
     });
+    const ticketId = typeof ticket === "string" ? ticket : null;
+
+    // For a filesystem-confined stdio server, kick off a copy-on-write dry-run
+    // so the approver sees the actual diff, not just JSON args.
+    if (
+      ticketId &&
+      !privacy &&
+      call.server.transport.type === "stdio" &&
+      sandbox?.dryRunOnApproval &&
+      isEgressNone(sandbox)
+    ) {
+      await enqueueDryRun(ctx, call, args, ticketId);
+    }
+
+    await notifyApprovalToSlack(ctx, exposedTool, heldReason, risk);
+
     return textResult({
       status: "pending_approval",
       ticket_id: ticket,
@@ -426,9 +611,19 @@ async function handleToolCall(
     });
   }
 
-  // allow → execute downstream now, then screen the result for injection
+  // allow / flag → execute downstream now, then screen the result.
+  const marked = decision === "flag";
+  // Snapshot before a destructive call on a snapshot-enabled stdio server so
+  // the operator can undo it.
+  const snapshotMeta =
+    call.server.transport.type === "stdio" &&
+    sandbox?.snapshotBeforeWrite &&
+    isRiskyRawTool(rawName)
+      ? { snapshot: true, label: `before ${exposedTool}`, fsScope: sandbox.fsScope ?? [] }
+      : {};
+
   try {
-    const result = truncateToolResult(await executeDownstream(ctx, call, args));
+    const result = truncateToolResult(await executeDownstream(ctx, call, args, snapshotMeta));
     const shieldMode: ShieldMode = call.server.shield_mode ?? "flag";
     const scan = scanToolResult(result);
     const { result: screened, blocked } = applyShield(result, scan, shieldMode);
@@ -441,25 +636,41 @@ async function handleToolCall(
         exposedTool,
         decision,
         status: "blocked",
-        args,
+        args: auditArgs,
         reason: `Shield blocked the result — matched: ${describeScan(scan)}.`,
-        result,
+        result: logResult(result),
+        risk,
+        requestId,
       });
       return screened;
     }
+
+    // Untrusted-data provenance: a shield-flagged result or output from an
+    // ingestion tool taints the agent for its next risky action.
+    if (scan.flagged) {
+      await recordTaint(ctx, "shield_flag", exposedTool, describeScan(scan));
+    } else if (isIngestionTool(rawName)) {
+      await recordTaint(ctx, "untrusted_source", exposedTool, "ingestion tool output");
+    }
+
+    const finalResult = marked && !result.isError
+      ? markRisky(screened, policy?.description || "")
+      : screened;
 
     await audit(ctx, {
       serverId,
       exposedTool,
       decision,
-      status: result.isError ? "error" : "allowed",
-      args,
+      status: result.isError ? "error" : marked ? "flagged" : "allowed",
+      args: auditArgs,
       reason:
         (reason || (policy ? policy.description : "No policy matched — default allow.")) +
         (scan.flagged ? ` — shield flagged: ${describeScan(scan)}.` : ""),
-      result,
+      result: logResult(result),
+      risk,
+      requestId,
     });
-    return screened;
+    return finalResult;
   } catch (err) {
     // Keep the specific reason in the audit trail (dashboard-only), but return
     // a generic message to the agent so downstream infra detail never leaks.
@@ -469,8 +680,10 @@ async function handleToolCall(
       exposedTool,
       decision,
       status: "error",
-      args,
+      args: auditArgs,
       reason: `Execution failed: ${message}`,
+      risk,
+      requestId,
     });
     return textResult(
       {

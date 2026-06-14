@@ -92,10 +92,10 @@ function PairRunnerDialog({
             the machine that should host your local MCP servers:
           </div>
           <CopyBlock
-            text={`npx polyshield-runner pair --token ${token} --url ${gatewayOrigin}`}
+            text={`npx polyshield pair --token ${token} --url ${gatewayOrigin}`}
             label="Copy pair command"
           />
-          <CopyBlock text="npx polyshield-runner start" label="Copy start command" />
+          <CopyBlock text="npx polyshield start" label="Copy start command" />
           <p className="text-xs text-muted-foreground">
             Once it&apos;s running, your registered stdio servers connect and their
             tools appear in the catalog within seconds.

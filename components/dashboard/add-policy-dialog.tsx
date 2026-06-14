@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useState, useTransition } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Sparkles } from "lucide-react";
 import { createPolicyAction } from "@/app/dashboard/actions";
+import { aiSuggestConditionAction } from "@/app/dashboard/ai-actions";
 import { Modal, ModalHeader } from "@/components/dashboard/modal";
 import type { PolicyDecision } from "@/lib/dashboard/types";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ const field =
 const DECISIONS: Array<{ value: PolicyDecision; label: string; hint: string }> = [
   { value: "require_approval", label: "Require approval", hint: "Held until a human decides" },
   { value: "deny", label: "Deny", hint: "Never forwarded" },
+  { value: "flag", label: "Flag", hint: "Allowed, result marked untrusted" },
   { value: "allow", label: "Allow", hint: "Forwarded immediately" },
 ];
 
@@ -47,6 +49,27 @@ function AddPolicyDialog({
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [aiText, setAiText] = useState("");
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
+  const [aiPending, startAi] = useTransition();
+
+  function suggest() {
+    if (!aiText.trim()) return;
+    setAiMsg(null);
+    startAi(async () => {
+      const r = await aiSuggestConditionAction(aiText);
+      if (!r.ok) {
+        setAiMsg(r.message ?? "Could not draft a condition.");
+        return;
+      }
+      if (!r.condition) {
+        setAiMsg("That rule needs no condition — it applies to the whole tool.");
+        return;
+      }
+      setCondition(r.condition);
+      setAiMsg(r.parseable ? "Drafted — review before saving." : "Drafted, but check the syntax.");
+    });
+  }
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,6 +134,31 @@ function AddPolicyDialog({
                   <p className="mt-0.5 text-xs text-muted-foreground">{d.hint}</p>
                 </button>
               ))}
+            </div>
+
+            <div className="rounded-xl border border-violet/20 bg-violet/[0.03] p-3">
+              <label htmlFor="p-ai" className="flex items-center gap-1.5 text-xs font-semibold text-violet-deep">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                Draft a condition from plain English
+              </label>
+              <div className="mt-1.5 flex gap-2">
+                <input
+                  id="p-ai"
+                  value={aiText}
+                  onChange={(e) => setAiText(e.target.value)}
+                  placeholder="block deletes outside the project folder"
+                  className="w-full rounded-lg border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-violet/40 focus:ring-4 focus:ring-violet/10"
+                />
+                <button
+                  type="button"
+                  onClick={suggest}
+                  disabled={aiPending}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-violet/10 px-3 text-sm font-semibold text-violet-deep transition-colors hover:bg-violet/15 disabled:opacity-60"
+                >
+                  {aiPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Draft"}
+                </button>
+              </div>
+              {aiMsg ? <p className="mt-1.5 text-xs text-muted-foreground">{aiMsg}</p> : null}
             </div>
 
             <div>

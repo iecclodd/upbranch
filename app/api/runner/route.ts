@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { gatewayClient } from "@/lib/gateway/db";
+import { scanToolDefinition } from "@/lib/gateway/shield";
 import { isRiskyRawTool } from "@/lib/gateway/tools";
 import { truncateToolResult } from "@/lib/mcp/client";
 import { decryptSecret } from "@/lib/vault";
@@ -61,9 +62,19 @@ export async function POST(req: Request): Promise<Response> {
     version?: string;
     servers?: ReportedServer[];
     jobId?: string;
+    kind?: string;
     result?: unknown;
     error?: string;
     max?: number;
+    // snapshot ops
+    serverId?: string;
+    label?: string;
+    scopePath?: string;
+    ref?: string;
+    snapshotKind?: string;
+    bytes?: number;
+    snapshotId?: string;
+    ok?: boolean;
   };
   try {
     body = await req.json();
@@ -89,12 +100,19 @@ export async function POST(req: Request): Promise<Response> {
           const tools = reported.tools
             .filter((t) => t && typeof t.name === "string" && t.name)
             .slice(0, 500)
-            .map((t) => ({
-              name: t.name,
-              description: typeof t.description === "string" ? t.description : "",
-              input_schema: t.inputSchema ?? { type: "object", properties: {} },
-              risky: isRiskyRawTool(t.name),
-            }));
+            .map((t) => {
+              const description = typeof t.description === "string" ? t.description : "";
+              const inputSchema = t.inputSchema ?? { type: "object", properties: {} };
+              const scan = scanToolDefinition({ name: t.name, description, inputSchema });
+              return {
+                name: t.name,
+                description,
+                input_schema: inputSchema,
+                risky: isRiskyRawTool(t.name),
+                risk: scan.risk,
+                risk_detail: scan.detail ?? null,
+              };
+            });
           await db.rpc("runner_report_tools", {
             p_token_hash: tokenHash,
             p_server_id: reported.serverId,
@@ -125,6 +143,7 @@ export async function POST(req: Request): Promise<Response> {
         prefix: string;
         status: string;
         transport: StdioTransport;
+        sandbox_profile: unknown;
         secrets: Array<{ name: string; ciphertext: string }>;
       }>;
 
@@ -151,6 +170,7 @@ export async function POST(req: Request): Promise<Response> {
           env,
           envPassthrough: row.transport.envPassthrough ?? [],
           cwd: row.transport.cwd,
+          sandbox: row.sandbox_profile ?? null,
         });
       }
 
@@ -167,11 +187,15 @@ export async function POST(req: Request): Promise<Response> {
         server_id: string;
         raw_name: string;
         args: Record<string, unknown>;
+        kind: string;
+        meta: Record<string, unknown>;
       }>).map((j) => ({
         id: j.id,
         serverId: j.server_id,
         rawName: j.raw_name,
         args: j.args ?? {},
+        kind: j.kind ?? "call",
+        meta: j.meta ?? {},
       }));
       return json({ ok: true, jobs });
     }
@@ -182,18 +206,27 @@ export async function POST(req: Request): Promise<Response> {
       }
       const errorText =
         typeof body.error === "string" && body.error ? body.error.slice(0, 1_000) : null;
-      // Cap stored result size the same way gateway results are capped.
-      const result =
-        body.result !== undefined && body.result !== null && !errorText
-          ? truncateToolResult({
-              content: Array.isArray((body.result as { content?: unknown[] }).content)
-                ? ((body.result as { content: never[] }).content)
-                : [],
-              structuredContent: (body.result as { structuredContent?: unknown })
-                .structuredContent,
-              isError: (body.result as { isError?: boolean }).isError === true,
-            })
-          : null;
+      let result: unknown = null;
+      if (!errorText && body.result !== undefined && body.result !== null) {
+        if (body.kind === "dryrun") {
+          // A dry-run result is a diff preview, not a tool result — store it
+          // as-is (size-capped), so it survives onto the approval card.
+          const serialized = JSON.stringify(body.result);
+          result =
+            serialized && serialized.length > 200_000
+              ? { truncated: true, note: "Preview too large to store." }
+              : body.result;
+        } else {
+          // A call result is a tool result — cap it like the gateway does.
+          result = truncateToolResult({
+            content: Array.isArray((body.result as { content?: unknown[] }).content)
+              ? (body.result as { content: never[] }).content
+              : [],
+            structuredContent: (body.result as { structuredContent?: unknown }).structuredContent,
+            isError: (body.result as { isError?: boolean }).isError === true,
+          });
+        }
+      }
       const { data: completed } = await db.rpc("runner_complete_job", {
         p_token_hash: tokenHash,
         p_job_id: body.jobId,
@@ -201,6 +234,29 @@ export async function POST(req: Request): Promise<Response> {
         p_error: errorText,
       });
       return json({ ok: completed === true });
+    }
+
+    case "snapshot": {
+      const { data } = await db.rpc("runner_report_snapshot", {
+        p_token_hash: tokenHash,
+        p_server_id: typeof body.serverId === "string" ? body.serverId : null,
+        p_job_id: typeof body.jobId === "string" ? body.jobId : null,
+        p_label: typeof body.label === "string" ? body.label.slice(0, 200) : "",
+        p_scope_path: typeof body.scopePath === "string" ? body.scopePath.slice(0, 1000) : "",
+        p_ref: typeof body.ref === "string" ? body.ref : "",
+        p_kind: typeof body.snapshotKind === "string" ? body.snapshotKind : "copy",
+        p_bytes: typeof body.bytes === "number" ? body.bytes : null,
+      });
+      return json({ ok: true, snapshotId: (data as string | null) ?? null });
+    }
+
+    case "snapshot_restored": {
+      const { data } = await db.rpc("runner_mark_snapshot_restored", {
+        p_token_hash: tokenHash,
+        p_snapshot_id: typeof body.snapshotId === "string" ? body.snapshotId : null,
+        p_ok: body.ok === true,
+      });
+      return json({ ok: data === true });
     }
 
     default:

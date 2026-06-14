@@ -50,12 +50,49 @@ check("amount>100 and force==true, force false → allow",
 check("amount>100 and force==true, amount missing → gate (fail closed)",
   evaluatePolicy(gate("amount > 100 and force == true"), { force: true }).decision, "require_approval");
 
-// --- strictest wins ---
+// --- strictest wins (now incl. flag between allow and require_approval) ---
 check("deny beats require_approval",
   evaluatePolicy([{ decision: "require_approval" }, { decision: "deny" }], {}).decision, "deny");
 check("require_approval beats allow",
   evaluatePolicy([{ decision: "allow" }, { decision: "require_approval" }], {}).decision, "require_approval");
+check("require_approval beats flag",
+  evaluatePolicy([{ decision: "flag" }, { decision: "require_approval" }], {}).decision, "require_approval");
+check("flag beats allow",
+  evaluatePolicy([{ decision: "allow" }, { decision: "flag" }], {}).decision, "flag");
 check("no policies → allow",
+  evaluatePolicy([], {}).decision, "allow");
+
+// --- path scoping (startsWith) + not + project_root scope injection ---
+const denyOutsideRoot = [{ decision: "deny", condition: "not path startsWith project_root" }];
+check("write inside project_root → allow (deny policy doesn't apply)",
+  evaluatePolicy(denyOutsideRoot, { path: "/repo/src/a.ts" }, { project_root: "/repo" }).decision, "allow");
+check("write outside project_root → deny",
+  evaluatePolicy(denyOutsideRoot, { path: "/etc/passwd" }, { project_root: "/repo" }).decision, "deny");
+check("write with path missing → deny (fail closed)",
+  evaluatePolicy(denyOutsideRoot, {}, { project_root: "/repo" }).decision, "deny");
+check("startsWith true",
+  evalCondition('path startsWith "/repo"', { path: "/repo/x" }), true);
+check("startsWith false",
+  evalCondition('path startsWith "/repo"', { path: "/etc/x" }), false);
+check("startsWith missing → null",
+  evalCondition('path startsWith "/repo"', {}), null);
+
+// --- in [list] (git action gating, action injected from scope) ---
+const gateGitWrites = [{ decision: "require_approval", condition: 'action in ["push", "tag", "release"]' }];
+check("git push → require_approval",
+  evaluatePolicy(gateGitWrites, {}, { action: "push" }).decision, "require_approval");
+check("git status → allow",
+  evaluatePolicy(gateGitWrites, {}, { action: "status" }).decision, "allow");
+check("in true", evalCondition('x in ["a", "b"]', { x: "b" }), true);
+check("in false", evalCondition('x in ["a", "b"]', { x: "c" }), false);
+
+// --- new forms are parseable ---
+check("isParseable startsWith", isParseableCondition("path startsWith project_root"), true);
+check("isParseable not startsWith", isParseableCondition("not path startsWith project_root"), true);
+check("isParseable in", isParseableCondition('action in ["push", "tag"]'), true);
+
+// --- no policies → allow ---
+check("no policies → allow (2)",
   evaluatePolicy([], {}).decision, "allow");
 
 // --- raw evalCondition three-valued ---

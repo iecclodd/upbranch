@@ -9,6 +9,7 @@ export type Tone = "good" | "review" | "bad" | "neutral" | "violet";
 export function decisionTone(decision: PolicyDecision): Tone {
   if (decision === "allow") return "good";
   if (decision === "deny") return "bad";
+  if (decision === "flag") return "violet";
   return "review";
 }
 

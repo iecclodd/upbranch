@@ -1,9 +1,11 @@
 import {
+  approvalSuggestions,
   currentProjectId,
   listPolicies,
   listServers,
   listTools,
 } from "@/lib/db/repository";
+import { PolicySuggestions } from "@/components/dashboard/policy-suggestions";
 import {
   EmptyState,
   GlassCard,
@@ -17,16 +19,18 @@ import type { PolicyDecision } from "@/lib/dashboard/types";
 
 const summary: Record<PolicyDecision, string> = {
   allow: "Forwarded to the source MCP immediately. Logged.",
+  flag: "Forwarded, but the result is marked untrusted for the agent. Logged.",
   require_approval: "Held in the queue until a human decides. Logged.",
   deny: "Never forwarded. The agent receives a denial. Logged.",
 };
 
 export default async function PoliciesPage() {
   const projectId = await currentProjectId();
-  const [servers, policies, tools] = await Promise.all([
+  const [servers, policies, tools, suggestions] = await Promise.all([
     listServers(projectId),
     listPolicies(projectId),
     listTools(projectId),
+    approvalSuggestions(projectId),
   ]);
   const serverNames = Object.fromEntries(servers.map((s) => [s.id, s.name]));
   const toolNames = tools.map((t) => t.exposedName);
@@ -38,6 +42,8 @@ export default async function PoliciesPage() {
         description="Deterministic rules evaluated on every tool call. Tools without a policy default to allow; the strictest applicable policy wins."
         action={<AddPolicyButton toolNames={toolNames} />}
       />
+
+      <PolicySuggestions suggestions={suggestions} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         {(Object.keys(summary) as PolicyDecision[]).map((decision) => (

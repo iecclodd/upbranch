@@ -1,6 +1,12 @@
 import { headers } from "next/headers";
 import { Globe, Lock, Plug, TerminalSquare } from "lucide-react";
-import { currentProjectId, listRunners, listServers, listTools } from "@/lib/db/repository";
+import {
+  currentProjectId,
+  listRunners,
+  listServers,
+  listSnapshots,
+  listTools,
+} from "@/lib/db/repository";
 import {
   EmptyState,
   GlassCard,
@@ -16,6 +22,8 @@ import {
 } from "@/components/dashboard/add-server-dialog";
 import { ShieldModeSelect } from "@/components/dashboard/interactive";
 import { RunnersCard } from "@/components/dashboard/runners";
+import { SandboxButton } from "@/components/dashboard/sandbox-dialog";
+import { SnapshotsCard } from "@/components/dashboard/snapshots";
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import type { McpServer, TransportConfig } from "@/lib/dashboard/types";
 
@@ -62,10 +70,11 @@ function TransportSummary({ transport }: { transport: TransportConfig }) {
 
 export default async function ServersPage() {
   const projectId = await currentProjectId();
-  const [servers, tools, runners, headerList] = await Promise.all([
+  const [servers, tools, runners, snapshots, headerList] = await Promise.all([
     listServers(projectId),
     listTools(projectId),
     listRunners(projectId),
+    listSnapshots(projectId),
     headers(),
   ]);
 
@@ -98,6 +107,11 @@ export default async function ServersPage() {
           hasStdioServers={hasStdioServers}
         />
       ) : null}
+
+      <SnapshotsCard
+        snapshots={snapshots}
+        serverNames={Object.fromEntries(servers.map((s) => [s.id, s.name]))}
+      />
 
       {servers.length === 0 ? (
         <EmptyState
@@ -136,14 +150,18 @@ export default async function ServersPage() {
                   <span className="font-semibold">{toolCounts.get(server.id) ?? 0}</span> tools
                 </span>
                 <div className="flex items-center gap-2.5">
+                  {server.transport.type === "stdio" ? (
+                    <SandboxButton
+                      serverId={server.id}
+                      serverName={server.name}
+                      profile={server.sandbox}
+                    />
+                  ) : null}
                   <ShieldModeSelect
                     serverId={server.id}
                     mode={server.shieldMode}
                     label={server.name}
                   />
-                  <span className="text-xs text-muted-foreground">
-                    <TimeAgo ts={server.lastActionAt} />
-                  </span>
                 </div>
               </div>
             </GlassCard>

@@ -1,4 +1,4 @@
-import { Globe, TerminalSquare } from "lucide-react";
+import { Globe, ShieldAlert, TerminalSquare } from "lucide-react";
 import {
   currentProjectId,
   listPolicies,
@@ -78,9 +78,21 @@ export default async function ToolsPage() {
                             <span className="font-mono text-xs text-muted-foreground">
                               ← {tool.rawName}
                             </span>
+                            {tool.risk === "high" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                                <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+                                poisoned definition
+                              </span>
+                            ) : tool.risk === "low" ? (
+                              <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                                hidden characters
+                              </span>
+                            ) : null}
                           </div>
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {tool.rawDescription}
+                            {tool.risk === "high"
+                              ? `⚠ Tool definition matched injection heuristics (${tool.riskDetail}). Disabled by default — review before exposing.`
+                              : tool.rawDescription}
                           </p>
                         </div>
                         <StatusBadge

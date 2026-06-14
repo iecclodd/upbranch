@@ -1,4 +1,4 @@
-import { Bot } from "lucide-react";
+import { getProfile } from "@/lib/auth/session";
 import { currentProjectId, listApprovals, listServers } from "@/lib/db/repository";
 import {
   EmptyState,
@@ -7,15 +7,17 @@ import {
   StatusBadge,
   TimeAgo,
 } from "@/components/dashboard/primitives";
-import { ApprovalActions } from "@/components/dashboard/interactive";
+import { ApprovalCard } from "@/components/dashboard/approval-card";
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 
 export default async function ApprovalsPage() {
   const projectId = await currentProjectId();
-  const [servers, approvals] = await Promise.all([
+  const [servers, approvals, profile] = await Promise.all([
     listServers(projectId),
     listApprovals(projectId),
+    getProfile(),
   ]);
+  const aiEnabled = (profile?.plan ?? "free") !== "free";
   const serverNames = Object.fromEntries(servers.map((s) => [s.id, s.name]));
   const pending = approvals.filter((a) => a.status === "pending");
   const decided = approvals.filter((a) => a.status !== "pending");
@@ -36,35 +38,12 @@ export default async function ApprovalsPage() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
           {pending.map((approval) => (
-            <GlassCard key={approval.id} className="p-6">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-mono text-base font-semibold text-foreground">
-                  {approval.exposedTool}
-                </p>
-                <StatusBadge label="waiting for approval" tone="review" />
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Bot className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="font-mono text-[13px]">{approval.agent}</span>
-                </span>
-                <span>{serverNames[approval.serverId]}</span>
-                <TimeAgo ts={approval.requestedAt} />
-              </div>
-              <div className="mt-4 rounded-xl bg-ink p-4">
-                <p className="text-xs text-white/45">Arguments</p>
-                <pre className="mt-1.5 overflow-x-auto font-mono text-xs leading-5 text-white/90">
-                  {JSON.stringify(approval.args, null, 2)}
-                </pre>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-foreground/80">
-                <span className="font-semibold text-foreground">Reason: </span>
-                {approval.reason}
-              </p>
-              <div className="mt-5">
-                <ApprovalActions approvalId={approval.id} />
-              </div>
-            </GlassCard>
+            <ApprovalCard
+              key={approval.id}
+              approval={approval}
+              serverName={serverNames[approval.serverId] ?? "—"}
+              aiEnabled={aiEnabled}
+            />
           ))}
         </div>
       )}

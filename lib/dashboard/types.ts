@@ -50,6 +50,45 @@ export type TransportConfig = StdioTransport | HttpTransport;
  */
 export type ShieldMode = "off" | "flag" | "block";
 
+export type EgressMode = "inherit" | "none" | "allowlist";
+
+/**
+ * The runner sandbox profile for a stdio server (PRD R12/§13.2). What's
+ * enforced cross-platform today: fsScope (cwd pinning + path-arg refusal),
+ * stripEnv, wall-clock limit, snapshots/undo, dry-run diffs. egress and
+ * memory limits are declared + audited until container-level enforcement
+ * lands — the runner never treats a declared constraint as enforced.
+ */
+export interface SandboxProfile {
+  /** Allowlisted root dirs; cwd is pinned here and escaping path args refused. */
+  fsScope: string[];
+  egress: { mode: EgressMode; allow: string[] };
+  limits: { wallMs?: number; memMB?: number };
+  /** Snapshot the scope before an approved destructive call (undo). */
+  snapshotBeforeWrite: boolean;
+  /** Run gated calls against a copy-on-write copy first to show a diff. */
+  dryRunOnApproval: boolean;
+  /** Child gets only declared env + passthrough, not ambient host vars. */
+  stripEnv: boolean;
+  /**
+   * Run the server inside a Docker container — turns egress/memory/fs limits
+   * from DECLARED into kernel-ENFORCED (--network none, --memory, scoped
+   * mount). Requires Docker on the runner host; falls back to declared if
+   * absent.
+   */
+  containerize: boolean;
+}
+
+export const DEFAULT_SANDBOX_PROFILE: SandboxProfile = {
+  fsScope: [],
+  egress: { mode: "inherit", allow: [] },
+  limits: { wallMs: 60000 },
+  snapshotBeforeWrite: false,
+  dryRunOnApproval: false,
+  stripEnv: false,
+  containerize: false,
+};
+
 export interface McpServer {
   id: string;
   name: string;
@@ -59,7 +98,23 @@ export interface McpServer {
   transport: TransportConfig;
   description: string;
   shieldMode: ShieldMode;
+  sandbox: SandboxProfile;
+  origin: string;
+  registryId: string | null;
   lastActionAt: number | null;
+}
+
+/** A point-in-time snapshot of a server's filesystem scope, for undo. */
+export interface Snapshot {
+  id: string;
+  serverId: string | null;
+  label: string;
+  scopePath: string;
+  kind: string;
+  status: "available" | "restoring" | "restored" | "gone";
+  bytes: number | null;
+  createdAt: number;
+  restoredAt: number | null;
 }
 
 /**
@@ -90,6 +145,8 @@ export interface RawTool {
  * `exposedName` (dots become underscores on the MCP wire); Polyshield maps it
  * back to `rawName` on the source server.
  */
+export type ToolRisk = "none" | "low" | "high";
+
 export interface CatalogTool {
   id: string;
   serverId: string;
@@ -98,9 +155,17 @@ export interface CatalogTool {
   inputSchema: Record<string, unknown>;
   exposedName: string;
   enabled: boolean;
+  /** Result of the tool-poisoning scan on the tool's own definition. */
+  risk: ToolRisk;
+  riskDetail?: string;
 }
 
-export type PolicyDecision = "allow" | "deny" | "require_approval";
+/**
+ * Policy decisions, least → most strict. `flag` allows the call but marks the
+ * result as risky/untrusted (a warning is fenced around downstream output) —
+ * it sits between allow and require_approval. Strictest applicable wins.
+ */
+export type PolicyDecision = "allow" | "flag" | "require_approval" | "deny";
 
 export interface Policy {
   id: string;
@@ -122,6 +187,26 @@ export type ApprovalStatus = "pending" | "approved" | "denied";
  */
 export type ApprovalMethod = "dashboard" | "slack" | "webauthn";
 
+/** A copy-on-write dry-run diff attached to a pending approval. */
+export interface ApprovalPreview {
+  files?: Array<{
+    path: string;
+    status: "added" | "modified" | "deleted";
+    additions?: number;
+    deletions?: number;
+    diff?: string;
+    note?: string;
+  }>;
+  truncated?: boolean;
+  note?: string;
+}
+
+export interface ApprovalContext {
+  trustedUserGoal?: string | null;
+  containsUntrustedOutput?: boolean;
+  taintEscalated?: boolean;
+}
+
 export interface ApprovalRequest {
   id: string;
   agent: string;
@@ -138,6 +223,10 @@ export interface ApprovalRequest {
   auditId: string;
   /** Downstream execution result, recorded when an approved call ran. */
   result?: unknown;
+  /** Dry-run diff (filesystem-confined stdio servers). */
+  preview?: ApprovalPreview;
+  context?: ApprovalContext;
+  risk?: string;
 }
 
 export type AuditStatus =
@@ -170,9 +259,13 @@ export interface AuditEntry {
   reason?: string;
   args: Record<string, unknown>;
   result?: unknown;
+  risk?: string;
+  requestId?: string;
 }
 
 export type Plan = "free" | "builder" | "team" | "enterprise";
+
+export type PlanStatus = "active" | "trialing" | "past_due" | "canceled";
 
 export interface Profile {
   id: string;
@@ -180,11 +273,15 @@ export interface Profile {
   fullName: string | null;
   avatarUrl: string | null;
   plan: Plan;
+  planStatus: PlanStatus;
+  currentPeriodEnd: number | null;
+  hasBilling: boolean;
 }
 
 export interface Project {
   id: string;
   name: string;
+  privacyMode: boolean;
 }
 
 export type AgentStatus = "active" | "inactive";

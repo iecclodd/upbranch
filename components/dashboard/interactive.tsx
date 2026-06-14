@@ -48,7 +48,7 @@ export function ToolToggle({
   );
 }
 
-const DECISIONS: PolicyDecision[] = ["allow", "require_approval", "deny"];
+const DECISIONS: PolicyDecision[] = ["allow", "flag", "require_approval", "deny"];
 
 export function PolicySelect({
   policyId,

@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
+  LibraryBig,
   ScrollText,
   Server,
+  Settings,
   ShieldCheck,
   UserRoundCheck,
   Bot,
@@ -24,11 +26,13 @@ interface DockItem {
 const items: DockItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/servers", label: "MCP Servers", icon: Server },
+  { href: "/dashboard/registry", label: "Registry", icon: LibraryBig },
   { href: "/dashboard/tools", label: "Tools", icon: Wrench },
   { href: "/dashboard/policies", label: "Policies", icon: ShieldCheck },
   { href: "/dashboard/approvals", label: "Approvals", icon: UserRoundCheck },
   { href: "/dashboard/agents", label: "Agents", icon: Bot },
   { href: "/dashboard/logs", label: "Audit Logs", icon: ScrollText },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 export function Dock({ pendingCount }: { pendingCount: number }) {
