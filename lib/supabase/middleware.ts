@@ -41,6 +41,25 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // 2FA enforcement: Supabase does NOT auto-challenge. If the user has a
+  // verified factor (nextLevel aal2) but this session is only aal1 (e.g. they
+  // just signed in with Google), force the TOTP challenge before the dashboard.
+  if (user && pathname.startsWith("/dashboard")) {
+    try {
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aal && aal.currentLevel === "aal1" && aal.nextLevel === "aal2") {
+        const url = request.nextUrl.clone();
+        url.pathname = "/auth/challenge";
+        url.search = "";
+        url.searchParams.set("next", pathname);
+        return NextResponse.redirect(url);
+      }
+    } catch {
+      // Don't hard-fail the app if the MFA lookup hiccups; the challenge page
+      // is still reachable and sensitive server actions re-check separately.
+    }
+  }
+
   if (user && pathname === "/signin") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";

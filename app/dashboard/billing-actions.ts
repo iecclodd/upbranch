@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { stripe, stripeConfigured } from "@/lib/stripe";
+import { getStripe, stripeConfigured } from "@/lib/stripe";
+import { gatewayProof } from "@/lib/gateway/proof";
 import { planPriceId } from "@/lib/billing/plans";
 import type { Plan } from "@/lib/dashboard/types";
 
@@ -36,13 +37,22 @@ export async function startCheckoutAction(plan: Plan): Promise<UrlResult> {
 
   let customerId = profile?.stripe_customer_id ?? undefined;
   try {
+    const stripe = getStripe();
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,
         metadata: { supabase_user_id: user.id },
       });
       customerId = customer.id;
-      await supabase.from("profiles").update({ stripe_customer_id: customerId }).eq("id", user.id);
+      // profiles billing columns are not user-writable (migration 0012). Write
+      // the customer id through the proof-gated RPC — this also prevents a user
+      // pointing their stripe_customer_id at someone else's customer to hijack
+      // the billing portal.
+      await supabase.rpc("gateway_set_stripe_customer", {
+        p_user_id: user.id,
+        p_customer_id: customerId,
+        p_proof: gatewayProof(),
+      });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -78,6 +88,7 @@ export async function openBillingPortalAction(): Promise<UrlResult> {
   if (!profile?.stripe_customer_id) return { error: "No billing account yet — upgrade first." };
 
   try {
+    const stripe = getStripe();
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${siteUrl()}/dashboard/settings`,

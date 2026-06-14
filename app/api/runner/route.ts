@@ -76,8 +76,21 @@ export async function POST(req: Request): Promise<Response> {
     snapshotId?: string;
     ok?: boolean;
   };
+  const MAX_BODY_BYTES = 12_000_000; // runner results/dry-run previews can be larger than agent args
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
+    return json({ error: "Request too large." }, 413);
+  }
+  let raw: string;
   try {
-    body = await req.json();
+    raw = await req.text();
+  } catch {
+    return json({ error: "Invalid body." }, 400);
+  }
+  if (raw.length > MAX_BODY_BYTES) {
+    return json({ error: "Request too large." }, 413);
+  }
+  try {
+    body = JSON.parse(raw);
   } catch {
     return json({ error: "Invalid JSON body." }, 400);
   }

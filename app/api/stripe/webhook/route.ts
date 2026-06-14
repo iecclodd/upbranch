@@ -1,5 +1,5 @@
 import type Stripe from "stripe";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { priceToPlan } from "@/lib/billing/plans";
 import { gatewayClient } from "@/lib/gateway/db";
 import { gatewayProof } from "@/lib/gateway/proof";
@@ -44,6 +44,7 @@ export async function POST(req: Request): Promise<Response> {
   const body = await req.text(); // RAW — do not parse
   const sig = req.headers.get("stripe-signature") ?? "";
 
+  const stripe = getStripe();
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(body, sig, secret);

@@ -301,9 +301,10 @@ export function PrivacyPanel({ initialEnabled }: { initialEnabled: boolean }) {
         <div>
           <h2 className="font-semibold text-foreground">Offline / privacy mode</h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-            When on, Polyshield never writes tool arguments or results to the audit log — only sizes
-            and decisions are recorded. Your code and tool output aren&apos;t stored in the cloud. A
-            cloud-connector product can&apos;t make this claim.
+            When on, tool arguments and results are stripped before anything is written to the audit
+            log — only the tool name, the decision, and byte sizes are kept. Your file contents,
+            diffs, and query results are never stored in our database. Policies, approvals, and the
+            shield still run on the live call; only the saved record is redacted.
           </p>
         </div>
         <button

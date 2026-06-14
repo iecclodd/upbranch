@@ -467,9 +467,16 @@ async function handleToolCall(
   const { _reason, ...args } = rawArgs;
   const reason = typeof _reason === "string" ? _reason : "";
 
+  // Bound the wire name before it reaches the DB or any error string — a
+  // multi-megabyte / control-char name is never a real tool.
+  if (typeof name !== "string" || name.length > 256 || !/^[A-Za-z0-9_.-]+$/.test(name)) {
+    throw { code: -32602, message: "Unknown tool." };
+  }
+
   const { data } = await ctx.db.rpc("gateway_call_context", {
     p_key_hash: ctx.keyHash,
     p_wire_name: name,
+    p_proof: gatewayProof(),
   });
   const call = data as CallContext | null;
   if (call?.ambiguous) {
@@ -816,14 +823,34 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
+  // Bound the request so a single agent can't OOM the gateway or persist a
+  // multi-hundred-MB args blob into the audit log. (Vercel also caps at ~4.5MB
+  // in prod; this protects self-hosted/local too.)
+  const MAX_BODY_BYTES = 5_000_000;
+  const MAX_BATCH = 50;
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) {
+    return json(rpcError(null, -32600, "Request too large."), 413);
+  }
+  let raw: string;
+  try {
+    raw = await req.text();
+  } catch {
+    return json(rpcError(null, -32700, "Parse error"), 400);
+  }
+  if (raw.length > MAX_BODY_BYTES) {
+    return json(rpcError(null, -32600, "Request too large."), 413);
+  }
   let body: unknown;
   try {
-    body = await req.json();
+    body = JSON.parse(raw);
   } catch {
     return json(rpcError(null, -32700, "Parse error"), 400);
   }
 
   const messages = Array.isArray(body) ? (body as RpcMessage[]) : [body as RpcMessage];
+  if (messages.length > MAX_BATCH) {
+    return json(rpcError(null, -32600, "Too many messages in one batch."), 413);
+  }
   const responses = (
     await Promise.all(messages.map((m) => handleMessage(ctx, m)))
   ).filter((r): r is RpcResponse => r !== null);

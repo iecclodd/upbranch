@@ -97,6 +97,25 @@ function maskTransport(transport: TransportConfig): TransportConfig {
   };
 }
 
+/**
+ * Trim, NFC-normalize, strip control/zero-width/bidi chars, and bound a
+ * user-supplied display name. Stops 100k-char names, null bytes, and invisible
+ * unicode from being stored and propagated into audit rows / approval cards.
+ */
+function cleanName(input: string, max = 80): string {
+  let out = "";
+  for (const ch of (input ?? "").normalize("NFC")) {
+    const c = ch.codePointAt(0) ?? 0;
+    // drop C0/C1 control, zero-width, bidi overrides, word-joiner, BOM
+    if (c < 0x20 || (c >= 0x7f && c <= 0x9f)) continue;
+    if (c >= 0x200b && c <= 0x200f) continue;
+    if (c >= 0x202a && c <= 0x202e) continue;
+    if (c === 0x2060 || c === 0xfeff) continue;
+    out += ch;
+  }
+  return out.trim().slice(0, max);
+}
+
 // ---------- servers ----------
 
 export async function addServerAction(input: {
@@ -106,9 +125,18 @@ export async function addServerAction(input: {
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
+  const name = cleanName(input.name);
+  if (!name) return { error: "A server name is required." };
+  const { count: serverCount } = await supabase
+    .from("mcp_servers")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId);
+  if ((serverCount ?? 0) >= 100) {
+    return { error: "You've reached the limit of 100 servers for this project." };
+  }
   const prefix = input.prefix.trim().toLowerCase();
-  if (!/^[a-z][a-z0-9_]*$/.test(prefix)) {
-    return { error: "Namespace must start with a letter and use only a-z, 0-9, _." };
+  if (!/^[a-z][a-z0-9_]{0,48}$/.test(prefix)) {
+    return { error: "Namespace must start with a letter, use only a-z, 0-9, _, and be ≤49 chars." };
   }
   const { data: duplicate } = await supabase
     .from("mcp_servers")
@@ -150,7 +178,7 @@ export async function addServerAction(input: {
       .from("mcp_servers")
       .insert({
         project_id: projectId,
-        name: input.name.trim(),
+        name: name,
         prefix,
         kind: "remote",
         status: "connected",
@@ -214,8 +242,8 @@ export async function addServerAction(input: {
 
     await logAdminEvent(supabase, projectId, {
       serverId: server.id,
-      target: input.name.trim(),
-      detail: `Connected HTTP MCP server "${input.name.trim()}" (${prefix}.*) — ${tools.length} tools discovered.`,
+      target: name,
+      detail: `Connected HTTP MCP server "${name}" (${prefix}.*) — ${tools.length} tools discovered.`,
     });
   } else {
     if (!input.transport.command.trim()) {
@@ -243,7 +271,7 @@ export async function addServerAction(input: {
       .from("mcp_servers")
       .insert({
         project_id: projectId,
-        name: input.name.trim(),
+        name: name,
         prefix,
         kind: "remote",
         status: "pending",
@@ -271,8 +299,8 @@ export async function addServerAction(input: {
 
     await logAdminEvent(supabase, projectId, {
       serverId: server.id,
-      target: input.name.trim(),
-      detail: `Registered local stdio server "${input.name.trim()}" (${prefix}.*) — waiting for the local runner.`,
+      target: name,
+      detail: `Registered local stdio server "${name}" (${prefix}.*) — waiting for the local runner.`,
     });
   }
 
@@ -949,19 +977,25 @@ export async function restoreSnapshotAction(snapshotId: string): Promise<ActionR
 export async function createAgentAction(name: string): Promise<{ key: string }> {
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
+  const clean = cleanName(name) || "New agent";
+  const { count } = await supabase
+    .from("agents")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId);
+  if ((count ?? 0) >= 100) throw new Error("You've reached the limit of 100 agents for this project.");
   const key = `psk_live_${randomBytes(24).toString("hex")}`;
   const keyHash = createHash("sha256").update(key).digest("hex");
 
   await supabase.from("agents").insert({
     project_id: projectId,
-    name: name.trim() || "New agent",
+    name: clean,
     status: "inactive",
     key_hash: keyHash,
     key_preview: key.slice(-4),
   });
   await logAdminEvent(supabase, projectId, {
-    target: name.trim() || "New agent",
-    detail: `Created agent "${name.trim() || "New agent"}" and issued a key.`,
+    target: clean,
+    detail: `Created agent "${clean}" and issued a key.`,
   });
   revalidatePath("/dashboard", "layout");
   return { key };
@@ -991,17 +1025,23 @@ export async function deleteAgentAction(agentId: string) {
 export async function pairRunnerAction(name: string): Promise<{ token: string }> {
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
+  const clean = cleanName(name) || "My machine";
+  const { count } = await supabase
+    .from("runners")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId);
+  if ((count ?? 0) >= 50) throw new Error("You've reached the limit of 50 runners for this project.");
   const token = `prt_live_${randomBytes(24).toString("hex")}`;
   const tokenHash = createHash("sha256").update(token).digest("hex");
 
   await supabase.from("runners").insert({
     project_id: projectId,
-    name: name.trim() || "My machine",
+    name: clean,
     token_hash: tokenHash,
   });
   await logAdminEvent(supabase, projectId, {
-    target: name.trim() || "My machine",
-    detail: `Paired local runner "${name.trim() || "My machine"}" and issued a token.`,
+    target: clean,
+    detail: `Paired local runner "${clean}" and issued a token.`,
   });
   revalidatePath("/dashboard", "layout");
   return { token };
