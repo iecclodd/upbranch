@@ -1,5 +1,9 @@
 import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
+import { lookup as dnsLookupCb } from "node:dns";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP, type LookupFunction } from "node:net";
+import { ipIsPrivate } from "@/lib/net/ssrf";
 import type { RawTool } from "@/lib/dashboard/types";
 
 /**
@@ -20,32 +24,6 @@ const PROTOCOL_VERSION = "2025-03-26";
  * who genuinely run MCPs on a private network can opt out with
  * POLYSHIELD_ALLOW_PRIVATE_MCP=1.
  */
-function ipIsPrivate(ip: string): boolean {
-  const v = isIP(ip);
-  if (v === 4) {
-    const p = ip.split(".").map(Number);
-    if (p.length !== 4 || p.some((n) => Number.isNaN(n))) return true;
-    const [a, b] = p;
-    return (
-      a === 0 ||
-      a === 10 ||
-      a === 127 ||
-      (a === 169 && b === 254) || // link-local incl. cloud metadata
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) ||
-      (a === 100 && b >= 64 && b <= 127) || // CGNAT
-      a >= 224 // multicast / reserved
-    );
-  }
-  const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
-  if (lower === "::1" || lower === "::" ) return true;
-  if (lower.startsWith("fe80") || lower.startsWith("fc") || lower.startsWith("fd")) return true;
-  // IPv4-mapped IPv6 (::ffff:a.b.c.d)
-  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return ipIsPrivate(mapped[1]);
-  return false;
-}
-
 async function assertPublicUrl(endpoint: string): Promise<void> {
   if (process.env.POLYSHIELD_ALLOW_PRIVATE_MCP === "1") return;
   let url: URL;
@@ -74,6 +52,89 @@ async function assertPublicUrl(endpoint: string): Promise<void> {
   if (addresses.length === 0 || addresses.some((a) => ipIsPrivate(a.address))) {
     throw new McpClientError("Endpoint host is not permitted.");
   }
+}
+
+/**
+ * Public boolean variant of the SSRF guard, for non-MCP server-side outbound
+ * requests (e.g. a user-configured notification webhook). Same policy as
+ * registered MCP endpoints: http(s) only, no host that resolves to a private,
+ * loopback, link-local, or metadata address (unless self-hosters opt out).
+ */
+export async function isPublicHttpUrl(raw: string): Promise<boolean> {
+  try {
+    await assertPublicUrl(raw);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * SSRF-hardened, fire-and-forget JSON POST to a user-configured URL (e.g. a
+ * notification webhook). Unlike `fetch`, this:
+ *   - re-validates the resolved address AT CONNECT time via a custom lookup,
+ *     pinning the connection to a vetted public IP (defeats DNS rebinding and
+ *     the save-vs-send TOCTOU gap — the address validated is the one connected),
+ *   - never follows redirects (Node's http(s).request doesn't auto-follow), and
+ *   - resolves on completion or any error, never throwing, so a slow/dead/blocked
+ *     target can't stall or fail the gateway.
+ * Literal private IPs (incl. IPv4-mapped IPv6) must still be rejected by the
+ * caller's up-front isPublicHttpUrl check, since a literal host skips lookup.
+ */
+export function postJsonGuarded(rawUrl: string, body: unknown, timeoutMs = 4_000): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let url: URL;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      return resolve();
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:") return resolve();
+
+    const guardedLookup = ((
+      hostname: string,
+      _options: unknown,
+      cb: (err: Error | null, address: string, family: number) => void,
+    ) => {
+      dnsLookupCb(hostname, { all: true }, (err, addrs) => {
+        if (err) return cb(err, "", 0);
+        const ok = addrs.find((a) => !ipIsPrivate(a.address));
+        if (!ok) return cb(new Error("blocked: host resolves to a non-public address"), "", 0);
+        cb(null, ok.address, ok.family);
+      });
+    }) as unknown as LookupFunction;
+
+    const reqFn = url.protocol === "https:" ? httpsRequest : httpRequest;
+    const payload = Buffer.from(JSON.stringify(body ?? null));
+    let settled = false;
+    const done = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+
+    const req = reqFn(
+      url,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": payload.length },
+        lookup: guardedLookup,
+        timeout: timeoutMs,
+      },
+      (res) => {
+        res.resume(); // drain & discard — never follow redirects, never read the body
+        res.on("end", done);
+        res.on("error", done);
+      },
+    );
+    req.on("error", done);
+    req.on("timeout", () => {
+      req.destroy();
+      done();
+    });
+    req.end(payload);
+  });
 }
 
 interface JsonRpcMessage {
@@ -176,6 +237,9 @@ export class McpHttpClient {
         headers: this.headers(),
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(timeoutMs),
+        // Don't follow cross-host redirects into internal space (SSRF). A 3xx
+        // surfaces as an opaque response and is treated as a transport error.
+        redirect: "manual",
       });
     } catch (err) {
       throw new McpClientError(

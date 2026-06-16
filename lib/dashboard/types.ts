@@ -306,7 +306,7 @@ export interface PlanLimits {
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   free: { projects: 1, agents: 1, tools: 3, actionsPerMonth: 100 },
   builder: { projects: 3, agents: 5, tools: 10, actionsPerMonth: 5000 },
-  team: { projects: 10, agents: 50, tools: 100, actionsPerMonth: 50000 },
+  team: { projects: 10, agents: Infinity, tools: Infinity, actionsPerMonth: 50000 },
   enterprise: {
     projects: Infinity,
     agents: Infinity,

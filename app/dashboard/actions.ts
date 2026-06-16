@@ -10,14 +10,18 @@ import { isParseableCondition } from "@/lib/gateway/policy";
 import { applyShield, describeScan, scanToolDefinition, scanToolResult } from "@/lib/gateway/shield";
 import {
   discoverHttpTools,
+  isPublicHttpUrl,
   McpHttpClient,
   truncateToolResult,
   type McpToolResult,
 } from "@/lib/mcp/client";
 import { decryptSecret, encryptSecret } from "@/lib/vault";
 import { registryEntry } from "@/lib/registry/catalog";
+import { planAllows, minPlanFor, planLabel } from "@/lib/billing/plans";
+import { isTelegramBotToken, isTelegramChatId } from "@/lib/notify/channels";
 import {
   DEFAULT_SANDBOX_PROFILE,
+  type Plan,
   type PolicyDecision,
   type RawTool,
   type SandboxProfile,
@@ -50,6 +54,20 @@ async function currentProjectId(supabase: Supabase): Promise<string> {
     .maybeSingle();
   if (!data) throw new Error("No project");
   return data.id;
+}
+
+/** The signed-in user's billing plan — the authority for paid-feature gates. */
+async function currentPlan(supabase: Supabase): Promise<Plan> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return "free";
+  const { data } = await supabase
+    .from("profiles")
+    .select("plan")
+    .eq("id", user.id)
+    .maybeSingle();
+  return (data?.plan as Plan | undefined) ?? "free";
 }
 
 /**
@@ -408,8 +426,9 @@ export async function deleteServerAction(serverId: string) {
     .from("mcp_servers")
     .select("name, prefix")
     .eq("id", serverId)
+    .eq("project_id", projectId)
     .maybeSingle();
-  await supabase.from("mcp_servers").delete().eq("id", serverId);
+  await supabase.from("mcp_servers").delete().eq("id", serverId).eq("project_id", projectId);
   if (server) {
     await logAdminEvent(supabase, projectId, {
       target: server.name,
@@ -430,6 +449,7 @@ export async function setShieldModeAction(
     .from("mcp_servers")
     .update({ shield_mode: mode })
     .eq("id", serverId)
+    .eq("project_id", projectId)
     .select("name")
     .maybeSingle();
   if (server) {
@@ -450,6 +470,12 @@ export async function setSandboxProfileAction(
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
 
+  // Snapshots/undo, dry-run diffs, and container isolation are paid (Builder+).
+  // Basic scoping, egress declaration, env stripping, and limits stay free —
+  // we never paywall the controls that prevent a disaster, only the advanced
+  // conveniences. A non-paid plan has these three coerced off server-side.
+  const advancedSandbox = planAllows(await currentPlan(supabase), "sandbox_advanced");
+
   // Normalize/validate so a malformed client payload can't widen the sandbox.
   const clean: SandboxProfile = {
     fsScope: (Array.isArray(profile.fsScope) ? profile.fsScope : [])
@@ -469,16 +495,17 @@ export async function setSandboxProfileAction(
       wallMs: clampInt(profile.limits?.wallMs, 1000, 600000, 60000),
       memMB: profile.limits?.memMB ? clampInt(profile.limits.memMB, 64, 16384, 512) : undefined,
     },
-    snapshotBeforeWrite: profile.snapshotBeforeWrite === true,
-    dryRunOnApproval: profile.dryRunOnApproval === true,
+    snapshotBeforeWrite: advancedSandbox && profile.snapshotBeforeWrite === true,
+    dryRunOnApproval: advancedSandbox && profile.dryRunOnApproval === true,
     stripEnv: profile.stripEnv === true,
-    containerize: profile.containerize === true,
+    containerize: advancedSandbox && profile.containerize === true,
   };
 
   const { data: server } = await supabase
     .from("mcp_servers")
     .update({ sandbox_profile: clean })
     .eq("id", serverId)
+    .eq("project_id", projectId)
     .select("name")
     .maybeSingle();
   if (server) {
@@ -498,26 +525,109 @@ function clampInt(v: unknown, min: number, max: number, fallback: number): numbe
   return Math.min(max, Math.max(min, Math.round(n)));
 }
 
-/** Save (or clear) the Slack incoming-webhook for approval notifications. */
-export async function setSlackWebhookAction(url: string): Promise<ActionResult> {
+export type NotifyChannelInput =
+  | { channel: "slack" | "discord" | "webhook"; url: string }
+  | { channel: "telegram"; botToken: string; chatId: string };
+
+const NOTIFY_COLUMN: Record<NotifyChannelInput["channel"], string> = {
+  slack: "slack_webhook_ciphertext",
+  discord: "discord_webhook_ciphertext",
+  telegram: "telegram_ciphertext",
+  webhook: "webhook_ciphertext",
+};
+
+const NOTIFY_LABEL: Record<NotifyChannelInput["channel"], string> = {
+  slack: "Slack",
+  discord: "Discord",
+  telegram: "Telegram",
+  webhook: "Webhook",
+};
+
+/**
+ * Connect or disconnect an approval-notification channel (Slack / Discord /
+ * Telegram / generic webhook). The destination is stored as AES-256-GCM
+ * ciphertext — never plaintext — and each channel validates its destination
+ * (generic webhooks get the full SSRF guard). Connecting is gated to paid
+ * plans; disconnecting is always allowed so a downgraded user can remove a
+ * channel they can no longer use.
+ */
+export async function setNotifyChannelAction(input: NotifyChannelInput): Promise<ActionResult> {
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
-  const trimmed = url.trim();
-  if (trimmed && !/^https:\/\/hooks\.slack\.com\/services\//.test(trimmed)) {
-    return { error: "That doesn't look like a Slack incoming webhook (https://hooks.slack.com/services/…)." };
+
+  const isClear =
+    input.channel === "telegram"
+      ? !input.botToken.trim() && !input.chatId.trim()
+      : !input.url.trim();
+
+  if (!isClear) {
+    const plan = await currentPlan(supabase);
+    if (!planAllows(plan, "notifications")) {
+      return {
+        error: `Approval notifications are a ${planLabel(minPlanFor("notifications"))} feature — upgrade to connect a channel.`,
+      };
+    }
   }
+
+  let plaintext: string | null = null;
+  if (!isClear) {
+    if (input.channel === "slack") {
+      const url = input.url.trim();
+      if (!/^https:\/\/hooks\.slack\.com\/services\//.test(url)) {
+        return { error: "That doesn't look like a Slack incoming webhook (https://hooks.slack.com/services/…)." };
+      }
+      plaintext = url;
+    } else if (input.channel === "discord") {
+      const url = input.url.trim();
+      if (!/^https:\/\/(canary\.|ptb\.)?(discord\.com|discordapp\.com)\/api\/webhooks\/\d+\/[\w-]+/.test(url)) {
+        return { error: "That doesn't look like a Discord webhook URL (https://discord.com/api/webhooks/…)." };
+      }
+      plaintext = url;
+    } else if (input.channel === "telegram") {
+      const botToken = input.botToken.trim();
+      const chatId = input.chatId.trim();
+      if (!isTelegramBotToken(botToken)) {
+        return { error: "That doesn't look like a Telegram bot token (e.g. 123456789:AA…)." };
+      }
+      if (!isTelegramChatId(chatId)) {
+        return { error: "Chat ID should be a number (or @channelusername)." };
+      }
+      plaintext = JSON.stringify({ botToken, chatId });
+    } else {
+      const url = input.url.trim();
+      if (!/^https:\/\//i.test(url)) {
+        return { error: "Webhook URL must use https." };
+      }
+      if (!(await isPublicHttpUrl(url))) {
+        return {
+          error:
+            "That URL isn't allowed — it must be a public https endpoint, not an internal, loopback, or metadata address.",
+        };
+      }
+      plaintext = url;
+    }
+  }
+
   let ciphertext: string | null = null;
-  if (trimmed) {
+  if (plaintext) {
     try {
-      ciphertext = encryptSecret(trimmed);
+      ciphertext = encryptSecret(plaintext);
     } catch {
       return { error: "Credential vault is not configured (POLYSHIELD_VAULT_KEY)." };
     }
   }
-  await supabase.from("projects").update({ slack_webhook_ciphertext: ciphertext }).eq("id", projectId);
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ [NOTIFY_COLUMN[input.channel]]: ciphertext })
+    .eq("id", projectId);
+  if (error) return { error: "Could not save the notification channel." };
+
   await logAdminEvent(supabase, projectId, {
-    target: "Slack",
-    detail: trimmed ? "Connected a Slack webhook for approval notifications." : "Disconnected the Slack webhook.",
+    target: NOTIFY_LABEL[input.channel],
+    detail: isClear
+      ? `Disconnected the ${NOTIFY_LABEL[input.channel]} approval channel.`
+      : `Connected ${NOTIFY_LABEL[input.channel]} for approval notifications.`,
   });
   revalidatePath("/dashboard", "layout");
   return {};
@@ -527,6 +637,14 @@ export async function setSlackWebhookAction(url: string): Promise<ActionResult> 
 export async function setPrivacyModeAction(enabled: boolean): Promise<ActionResult> {
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
+  if (enabled) {
+    const plan = await currentPlan(supabase);
+    if (!planAllows(plan, "privacy_mode")) {
+      return {
+        error: `Offline / privacy mode is a ${planLabel(minPlanFor("privacy_mode"))} feature — upgrade to enable it.`,
+      };
+    }
+  }
   await supabase.from("projects").update({ privacy_mode: enabled }).eq("id", projectId);
   await logAdminEvent(supabase, projectId, {
     target: "privacy mode",
@@ -545,6 +663,7 @@ export async function toggleToolAction(toolId: string, enabled: boolean) {
     .from("catalog_tools")
     .update({ enabled })
     .eq("id", toolId)
+    .eq("project_id", projectId)
     .select("exposed_name, server_id")
     .maybeSingle();
   if (tool) {
@@ -557,6 +676,91 @@ export async function toggleToolAction(toolId: string, enabled: boolean) {
   revalidatePath("/dashboard", "layout");
 }
 
+/**
+ * Bulk enable/disable, or set a policy on, many catalog tools at once. Every id
+ * is re-scoped to the caller's project (ownership), the set is de-duped and
+ * capped, and a bulk "enable" never auto-exposes a tool flagged as poisoned —
+ * that still requires an explicit single toggle so a careless select-all can't
+ * surface a hidden-instruction tool.
+ */
+export async function bulkToolsAction(input: {
+  toolIds: string[];
+  action: "enable" | "disable" | PolicyDecision;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const projectId = await currentProjectId(supabase);
+
+  const ids = Array.from(
+    new Set((input.toolIds ?? []).filter((s): s is string => typeof s === "string" && s.length > 0)),
+  ).slice(0, 200);
+  if (ids.length === 0) return { error: "No tools selected." };
+
+  const { data: tools } = await supabase
+    .from("catalog_tools")
+    .select("id, exposed_name, server_id, risk")
+    .eq("project_id", projectId)
+    .in("id", ids);
+  if (!tools || tools.length === 0) return { error: "No matching tools." };
+
+  if (input.action === "enable" || input.action === "disable") {
+    const enabled = input.action === "enable";
+    const targetIds = (enabled ? tools.filter((t) => t.risk !== "high") : tools).map((t) => t.id);
+    const skipped = tools.length - targetIds.length;
+    if (targetIds.length > 0) {
+      await supabase
+        .from("catalog_tools")
+        .update({ enabled })
+        .eq("project_id", projectId)
+        .in("id", targetIds);
+    }
+    await logAdminEvent(supabase, projectId, {
+      target: `${targetIds.length} tools`,
+      detail: `${enabled ? "Exposed" : "Hid"} ${targetIds.length} tools in bulk${
+        skipped > 0 ? ` (${skipped} poisoned tool${skipped === 1 ? "" : "s"} skipped)` : ""
+      }.`,
+    });
+    revalidatePath("/dashboard", "layout");
+    return skipped > 0 && enabled
+      ? { error: `Exposed ${targetIds.length}. Skipped ${skipped} flagged as poisoned — enable those individually after review.` }
+      : {};
+  }
+
+  const decision = input.action;
+  if (!(["allow", "flag", "require_approval", "deny"] as PolicyDecision[]).includes(decision)) {
+    return { error: "Unknown decision." };
+  }
+  for (const t of tools) {
+    const { data: existing } = await supabase
+      .from("policies")
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("exposed_tool", t.exposed_name)
+      .is("condition", null)
+      .maybeSingle();
+    if (existing) {
+      await supabase
+        .from("policies")
+        .update({ decision })
+        .eq("id", existing.id)
+        .eq("project_id", projectId);
+    } else {
+      await supabase.from("policies").insert({
+        project_id: projectId,
+        server_id: t.server_id,
+        exposed_tool: t.exposed_name,
+        decision,
+        description: "Set in bulk from the tool catalog.",
+      });
+    }
+  }
+  await logAdminEvent(supabase, projectId, {
+    target: `${tools.length} tools`,
+    detail: `Set ${decision.replaceAll("_", " ")} policy on ${tools.length} tools in bulk.`,
+  });
+  revalidatePath("/dashboard", "layout");
+  return {};
+}
+
 export async function setPolicyDecisionAction(
   policyId: string,
   decision: PolicyDecision,
@@ -567,6 +771,7 @@ export async function setPolicyDecisionAction(
     .from("policies")
     .update({ decision })
     .eq("id", policyId)
+    .eq("project_id", projectId)
     .select("exposed_tool, server_id")
     .maybeSingle();
   if (policy) {
@@ -627,8 +832,9 @@ export async function deletePolicyAction(policyId: string) {
     .from("policies")
     .select("exposed_tool, decision, server_id")
     .eq("id", policyId)
+    .eq("project_id", projectId)
     .maybeSingle();
-  await supabase.from("policies").delete().eq("id", policyId);
+  await supabase.from("policies").delete().eq("id", policyId).eq("project_id", projectId);
   if (policy) {
     await logAdminEvent(supabase, projectId, {
       serverId: policy.server_id,
@@ -731,6 +937,7 @@ async function executeApprovedCall(
     .from("mcp_servers")
     .select("id, transport, shield_mode, sandbox_profile")
     .eq("id", approval.server_id)
+    .eq("project_id", projectId)
     .maybeSingle();
   if (!server) return failureResult("The source server no longer exists.");
 
@@ -829,6 +1036,7 @@ async function decideApproval(
       decided_at: new Date().toISOString(),
     })
     .eq("id", approvalId)
+    .eq("project_id", projectId)
     .eq("status", "pending")
     .select("id, audit_id, server_id, exposed_tool, args")
     .single();
@@ -930,6 +1138,7 @@ export async function restoreSnapshotAction(snapshotId: string): Promise<ActionR
     .from("runner_snapshots")
     .select("id, server_id, ref, scope_path, status, label")
     .eq("id", snapshotId)
+    .eq("project_id", projectId)
     .maybeSingle();
   if (!snap) return { error: "Snapshot not found." };
   if (!snap.server_id) {
@@ -1008,8 +1217,9 @@ export async function deleteAgentAction(agentId: string) {
     .from("agents")
     .select("name")
     .eq("id", agentId)
+    .eq("project_id", projectId)
     .maybeSingle();
-  await supabase.from("agents").delete().eq("id", agentId);
+  await supabase.from("agents").delete().eq("id", agentId).eq("project_id", projectId);
   if (agent) {
     await logAdminEvent(supabase, projectId, {
       target: agent.name,
@@ -1054,8 +1264,9 @@ export async function deleteRunnerAction(runnerId: string) {
     .from("runners")
     .select("name")
     .eq("id", runnerId)
+    .eq("project_id", projectId)
     .maybeSingle();
-  await supabase.from("runners").delete().eq("id", runnerId);
+  await supabase.from("runners").delete().eq("id", runnerId).eq("project_id", projectId);
   if (runner) {
     await logAdminEvent(supabase, projectId, {
       target: runner.name,
@@ -1069,4 +1280,28 @@ export async function signOutAction() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/");
+}
+
+/** Sign out of every device/session for this account (global scope). */
+export async function signOutEverywhereAction() {
+  const supabase = await createClient();
+  await supabase.auth.signOut({ scope: "global" });
+  redirect("/");
+}
+
+/** Update the account display name. Only full_name is user-writable (0012). */
+export async function updateProfileNameAction(name: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated." };
+  const clean = cleanName(name, 60);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: clean || null })
+    .eq("id", user.id);
+  if (error) return { error: "Could not update your name." };
+  revalidatePath("/dashboard", "layout");
+  return {};
 }

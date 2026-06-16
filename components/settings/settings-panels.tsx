@@ -1,126 +1,142 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Check, KeyRound, Loader2, ShieldCheck, Slack, Sparkles } from "lucide-react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
+import {
+  Bell,
+  Hash,
+  KeyRound,
+  Loader2,
+  LogOut,
+  MessageSquare,
+  Send,
+  ShieldCheck,
+  Slack,
+  Sparkles,
+  User,
+  Webhook,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  openBillingPortalAction,
-  startCheckoutAction,
-} from "@/app/dashboard/billing-actions";
-import { setPrivacyModeAction, setSlackWebhookAction } from "@/app/dashboard/actions";
+  setNotifyChannelAction,
+  setPrivacyModeAction,
+  signOutAction,
+  signOutEverywhereAction,
+  updateProfileNameAction,
+} from "@/app/dashboard/actions";
 import { GlassCard } from "@/components/dashboard/primitives";
-import { BILLING_TIERS } from "@/lib/billing/plans";
-import type { Plan } from "@/lib/dashboard/types";
+import { minPlanFor, planLabel } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
 
-// ---------- Billing ----------
+// ---------- Account ----------
 
-export function BillingPanel({
-  plan,
-  hasBilling,
-  periodEnd,
+export function AccountPanel({
+  email,
+  fullName,
+  avatarUrl,
 }: {
-  plan: Plan;
-  hasBilling: boolean;
-  periodEnd: number | null;
+  email: string | null;
+  fullName: string | null;
+  avatarUrl: string | null;
 }) {
+  const [name, setName] = useState(fullName ?? "");
   const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const initials = (fullName || email || "?").trim().charAt(0).toUpperCase();
 
-  function checkout(target: Plan) {
-    setError(null);
+  function save() {
+    setMsg(null);
     start(async () => {
-      const r = await startCheckoutAction(target);
-      if (r.error) return setError(r.error);
-      if (r.url) window.location.href = r.url;
-    });
-  }
-  function portal() {
-    setError(null);
-    start(async () => {
-      const r = await openBillingPortalAction();
-      if (r.error) return setError(r.error);
-      if (r.url) window.location.href = r.url;
+      const r = await updateProfileNameAction(name);
+      setMsg(r.error ?? "Saved.");
     });
   }
 
   return (
     <GlassCard className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-semibold text-foreground">Plan &amp; billing</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            You&apos;re on the <span className="font-semibold capitalize text-foreground">{plan}</span> plan
-            {periodEnd ? ` · renews ${new Date(periodEnd).toLocaleDateString()}` : ""}.
-          </p>
-        </div>
-        {hasBilling ? (
-          <button
-            type="button"
-            onClick={portal}
-            disabled={pending}
-            className="rounded-full border border-ink/15 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-ink/5 disabled:opacity-60"
-          >
-            Manage billing
-          </button>
-        ) : null}
+      <div className="flex items-center gap-2">
+        <User className="h-4 w-4 text-violet" aria-hidden="true" />
+        <h2 className="font-semibold text-foreground">Account</h2>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {BILLING_TIERS.map((tier) => {
-          const current = tier.plan === plan;
-          return (
-            <div
-              key={tier.plan}
-              className={cn(
-                "flex flex-col rounded-2xl border p-4",
-                current ? "border-violet/40 bg-violet/[0.04]" : "border-ink/10",
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-foreground">{tier.name}</p>
-                {current ? (
-                  <span className="rounded-full bg-violet/10 px-2 py-0.5 text-[11px] font-semibold text-violet">
-                    current
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1 text-lg font-semibold text-foreground">{tier.priceLabel}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{tier.blurb}</p>
-              <ul className="mt-3 flex-1 space-y-1.5">
-                {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-1.5 text-xs text-foreground/75">
-                    <Check className="mt-0.5 h-3 w-3 shrink-0 text-violet" aria-hidden="true" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-4">
-                {current ? (
-                  <span className="block text-center text-xs text-muted-foreground">Your plan</span>
-                ) : tier.cta === "contact" ? (
-                  <a
-                    href="mailto:hello@polyshield.ai?subject=Polyshield%20Enterprise"
-                    className="block rounded-full border border-ink/15 py-2 text-center text-sm font-semibold text-foreground transition-colors hover:bg-ink/5"
-                  >
-                    Contact us
-                  </a>
-                ) : tier.cta === "checkout" ? (
-                  <button
-                    type="button"
-                    onClick={() => checkout(tier.plan)}
-                    disabled={pending}
-                    className="w-full rounded-full bg-violet py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-deep disabled:opacity-60"
-                  >
-                    Upgrade
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
+      <div className="mt-5 flex items-center gap-4">
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt="" className="h-12 w-12 rounded-full object-cover" />
+        ) : (
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-violet/10 text-lg font-semibold text-violet">
+            {initials}
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-foreground">{email ?? "—"}</p>
+          <p className="text-xs text-muted-foreground">Signed in with email / Google</p>
+        </div>
       </div>
-      {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+
+      <label className="mt-5 block text-sm font-medium text-foreground" htmlFor="display-name">
+        Display name
+      </label>
+      <div className="mt-1.5 flex flex-wrap gap-2">
+        <input
+          id="display-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={60}
+          placeholder="Your name"
+          className="min-w-0 flex-1 rounded-lg border border-ink/10 bg-white px-3 py-2 text-sm outline-none focus:border-violet/40 focus:ring-4 focus:ring-violet/10"
+        />
+        <button
+          type="button"
+          onClick={save}
+          disabled={pending}
+          className="rounded-full bg-violet px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-deep disabled:opacity-60"
+        >
+          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+        </button>
+      </div>
+      {msg ? (
+        <p className={cn("mt-2 text-sm", msg === "Saved." ? "text-emerald-700" : "text-rose-600")}>{msg}</p>
+      ) : null}
+
+      <div className="mt-6 border-t border-ink/5 pt-5">
+        <form action={signOutAction}>
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-full border border-ink/15 px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-ink/5"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Sign out
+          </button>
+        </form>
+      </div>
+    </GlassCard>
+  );
+}
+
+// ---------- Sessions ----------
+
+export function SessionsPanel() {
+  return (
+    <GlassCard className="p-6">
+      <div className="flex items-center gap-2">
+        <ShieldCheck className="h-4 w-4 text-violet" aria-hidden="true" />
+        <h2 className="font-semibold text-foreground">Active sessions</h2>
+      </div>
+      <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+        You&apos;re signed in on this browser. If you&apos;ve signed in elsewhere, or you suspect
+        access you don&apos;t recognize, sign out of every session — this invalidates all other
+        devices immediately.
+      </p>
+      <form action={signOutEverywhereAction} className="mt-4">
+        <button
+          type="submit"
+          className="inline-flex items-center gap-2 rounded-full border border-rose-300 px-4 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          Sign out of all sessions
+        </button>
+      </form>
     </GlassCard>
   );
 }
@@ -211,18 +227,24 @@ export function MfaPanel() {
         ) : null}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Protect your account with an authenticator app (TOTP). Required to act on sensitive operations.
+        Protect your account with an authenticator app (TOTP). Once enrolled, you&apos;ll be asked
+        for a code at sign-in.
       </p>
 
       {enroll ? (
         <div className="mt-4 rounded-xl border border-ink/10 p-4">
           <p className="text-sm font-medium text-foreground">Scan with your authenticator app</p>
-          <div
+          {/* qr_code is a raw SVG string from Supabase; render it as an image
+              data-URL rather than injecting markup (no dangerouslySetInnerHTML). */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`data:image/svg+xml;utf-8,${encodeURIComponent(enroll.qr)}`}
+            alt="Two-factor authentication QR code"
+            width={180}
+            height={180}
             className="mt-3 inline-block rounded-lg bg-white p-2"
-            // qr_code is an SVG string returned by Supabase
-            dangerouslySetInnerHTML={{ __html: enroll.qr }}
           />
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
@@ -291,9 +313,29 @@ export function MfaPanel() {
 
 // ---------- Privacy mode ----------
 
-export function PrivacyPanel({ initialEnabled }: { initialEnabled: boolean }) {
+export function PrivacyPanel({
+  initialEnabled,
+  canUse,
+}: {
+  initialEnabled: boolean;
+  canUse: boolean;
+}) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [pending, start] = useTransition();
+  const [err, setErr] = useState<string | null>(null);
+
+  function toggle() {
+    const next = !enabled;
+    setErr(null);
+    setEnabled(next); // optimistic
+    start(async () => {
+      const r = await setPrivacyModeAction(next);
+      if (r.error) {
+        setEnabled(!next); // revert
+        setErr(r.error);
+      }
+    });
+  }
 
   return (
     <GlassCard className="p-6">
@@ -304,7 +346,11 @@ export function PrivacyPanel({ initialEnabled }: { initialEnabled: boolean }) {
             When on, tool arguments and results are stripped before anything is written to the audit
             log — only the tool name, the decision, and byte sizes are kept. Your file contents,
             diffs, and query results are never stored in our database. Policies, approvals, and the
-            shield still run on the live call; only the saved record is redacted.
+            shield still run on the live call; only the saved record is redacted.{" "}
+            <Link href="/docs#offline-mode" className="font-medium text-violet hover:underline">
+              How it works
+            </Link>
+            .
           </p>
         </div>
         <button
@@ -312,13 +358,7 @@ export function PrivacyPanel({ initialEnabled }: { initialEnabled: boolean }) {
           role="switch"
           aria-checked={enabled}
           disabled={pending}
-          onClick={() =>
-            start(async () => {
-              const next = !enabled;
-              setEnabled(next);
-              await setPrivacyModeAction(next);
-            })
-          }
+          onClick={toggle}
           className={cn(
             "relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60",
             enabled ? "bg-violet" : "bg-ink/15",
@@ -332,71 +372,258 @@ export function PrivacyPanel({ initialEnabled }: { initialEnabled: boolean }) {
           />
         </button>
       </div>
+      {!canUse ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Offline / privacy mode is a {planLabel(minPlanFor("privacy_mode"))} feature.{" "}
+          <Link href="/pricing" className="font-medium text-violet hover:underline">
+            Upgrade
+          </Link>{" "}
+          to enable it.
+        </p>
+      ) : null}
+      {err ? <p className="mt-2 text-sm text-rose-600">{err}</p> : null}
     </GlassCard>
   );
 }
 
-// ---------- Connections (Slack) ----------
+// ---------- Notifications (multi-channel) ----------
 
-export function ConnectionsPanel({ slackConfigured }: { slackConfigured: boolean }) {
+export interface ChannelState {
+  slack: boolean;
+  discord: boolean;
+  telegram: boolean;
+  webhook: boolean;
+}
+
+export function NotificationsPanel({
+  configured,
+  canUse,
+}: {
+  configured: ChannelState;
+  canUse: boolean;
+}) {
+  return (
+    <GlassCard className="p-6">
+      <div className="flex items-center gap-2">
+        <Bell className="h-4 w-4 text-violet" aria-hidden="true" />
+        <h2 className="font-semibold text-foreground">Approval notifications</h2>
+      </div>
+      <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+        Get pinged the moment an agent action is held for approval, so you can review it from
+        wherever you are. Connect any of these — we send the tool, agent, risk, and a link, never
+        your tool arguments or results.
+      </p>
+      {!canUse ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Notifications are a {planLabel(minPlanFor("notifications"))} feature.{" "}
+          <Link href="/pricing" className="font-medium text-violet hover:underline">
+            Upgrade
+          </Link>{" "}
+          to connect a channel.
+        </p>
+      ) : null}
+
+      <div className="mt-5 space-y-3">
+        <UrlChannel
+          channel="slack"
+          icon={<Slack className="h-4 w-4" aria-hidden="true" />}
+          title="Slack"
+          placeholder="https://hooks.slack.com/services/…"
+          help="Create an incoming webhook in your Slack workspace and paste its URL."
+          connected={configured.slack}
+          disabled={!canUse}
+        />
+        <UrlChannel
+          channel="discord"
+          icon={<MessageSquare className="h-4 w-4" aria-hidden="true" />}
+          title="Discord"
+          placeholder="https://discord.com/api/webhooks/…"
+          help="Channel → Edit → Integrations → Webhooks → New Webhook → Copy URL."
+          connected={configured.discord}
+          disabled={!canUse}
+        />
+        <TelegramChannel connected={configured.telegram} disabled={!canUse} />
+        <UrlChannel
+          channel="webhook"
+          icon={<Webhook className="h-4 w-4" aria-hidden="true" />}
+          title="Custom webhook"
+          placeholder="https://your-service.example.com/hooks/polyshield"
+          help="We POST a JSON payload to any public https endpoint you control."
+          connected={configured.webhook}
+          disabled={!canUse}
+        />
+      </div>
+    </GlassCard>
+  );
+}
+
+function ChannelShell({
+  icon,
+  title,
+  help,
+  connected,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  help: string;
+  connected: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-ink/10 p-4">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex rounded-md bg-ink/[0.04] p-1.5 text-foreground/70">{icon}</span>
+        <span className="font-medium text-foreground">{title}</span>
+        {connected ? (
+          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+            connected
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">{help}</p>
+      {children}
+    </div>
+  );
+}
+
+function UrlChannel({
+  channel,
+  icon,
+  title,
+  placeholder,
+  help,
+  connected,
+  disabled,
+}: {
+  channel: "slack" | "discord" | "webhook";
+  icon: ReactNode;
+  title: string;
+  placeholder: string;
+  help: string;
+  connected: boolean;
+  disabled: boolean;
+}) {
   const [url, setUrl] = useState("");
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
-  const [configured, setConfigured] = useState(slackConfigured);
+  const [isConnected, setIsConnected] = useState(connected);
 
   function save(clear = false) {
     setMsg(null);
     start(async () => {
-      const r = await setSlackWebhookAction(clear ? "" : url);
+      const r = await setNotifyChannelAction({ channel, url: clear ? "" : url });
       if (r.error) return setMsg(r.error);
-      setConfigured(!clear);
+      setIsConnected(!clear);
       setUrl("");
-      setMsg(clear ? "Slack disconnected." : "Slack connected — pending approvals will notify your channel.");
+      setMsg(clear ? "Disconnected." : "Connected.");
     });
   }
 
   return (
-    <GlassCard className="p-6">
-      <div className="flex items-center gap-2">
-        <Slack className="h-4 w-4 text-violet" aria-hidden="true" />
-        <h2 className="font-semibold text-foreground">Connections</h2>
-        {configured ? (
-          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-            Slack connected
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Paste a Slack incoming-webhook URL to get a notification (with a link) whenever an agent
-        action is held for approval.
-      </p>
+    <ChannelShell icon={icon} title={title} help={help} connected={isConnected}>
       <div className="mt-3 flex flex-wrap gap-2">
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://hooks.slack.com/services/…"
-          className="min-w-0 flex-1 rounded-lg border border-ink/10 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-violet/40 focus:ring-4 focus:ring-violet/10"
+          placeholder={placeholder}
+          disabled={disabled || pending}
+          className="min-w-0 flex-1 rounded-lg border border-ink/10 bg-white px-3 py-2 font-mono text-xs outline-none focus:border-violet/40 focus:ring-4 focus:ring-violet/10 disabled:bg-ink/[0.03]"
         />
         <button
           type="button"
           onClick={() => save(false)}
-          disabled={pending || !url.trim()}
+          disabled={disabled || pending || !url.trim()}
           className="rounded-full bg-violet px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-deep disabled:opacity-60"
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
         </button>
-        {configured ? (
+        {isConnected ? (
           <button
             type="button"
             onClick={() => save(true)}
             disabled={pending}
-            className="rounded-full border border-ink/15 px-4 py-2 text-sm font-semibold text-foreground hover:bg-ink/5"
+            className="rounded-full border border-ink/15 px-3 py-2 text-sm font-semibold text-foreground hover:bg-ink/5"
           >
             Disconnect
           </button>
         ) : null}
       </div>
-      {msg ? <p className="mt-2 text-sm text-muted-foreground">{msg}</p> : null}
-    </GlassCard>
+      {msg ? <p className="mt-2 text-xs text-muted-foreground">{msg}</p> : null}
+    </ChannelShell>
+  );
+}
+
+function TelegramChannel({ connected, disabled }: { connected: boolean; disabled: boolean }) {
+  const [botToken, setBotToken] = useState("");
+  const [chatId, setChatId] = useState("");
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(connected);
+
+  function save(clear = false) {
+    setMsg(null);
+    start(async () => {
+      const r = await setNotifyChannelAction(
+        clear
+          ? { channel: "telegram", botToken: "", chatId: "" }
+          : { channel: "telegram", botToken, chatId },
+      );
+      if (r.error) return setMsg(r.error);
+      setIsConnected(!clear);
+      setBotToken("");
+      setChatId("");
+      setMsg(clear ? "Disconnected." : "Connected.");
+    });
+  }
+
+  return (
+    <ChannelShell
+      icon={<Send className="h-4 w-4" aria-hidden="true" />}
+      title="Telegram"
+      help="Create a bot with @BotFather for the token, then your numeric chat id (or @channelusername)."
+      connected={isConnected}
+    >
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <input
+          value={botToken}
+          onChange={(e) => setBotToken(e.target.value)}
+          placeholder="123456789:AA…"
+          disabled={disabled || pending}
+          className="min-w-0 rounded-lg border border-ink/10 bg-white px-3 py-2 font-mono text-xs outline-none focus:border-violet/40 focus:ring-4 focus:ring-violet/10 disabled:bg-ink/[0.03]"
+        />
+        <div className="flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white px-2.5 has-[:focus]:border-violet/40 has-[:focus]:ring-4 has-[:focus]:ring-violet/10">
+          <Hash className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          <input
+            value={chatId}
+            onChange={(e) => setChatId(e.target.value)}
+            placeholder="chat id"
+            disabled={disabled || pending}
+            className="min-w-0 flex-1 bg-transparent py-2 font-mono text-xs outline-none disabled:opacity-60"
+          />
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => save(false)}
+          disabled={disabled || pending || !botToken.trim() || !chatId.trim()}
+          className="rounded-full bg-violet px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-deep disabled:opacity-60"
+        >
+          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+        </button>
+        {isConnected ? (
+          <button
+            type="button"
+            onClick={() => save(true)}
+            disabled={pending}
+            className="rounded-full border border-ink/15 px-3 py-2 text-sm font-semibold text-foreground hover:bg-ink/5"
+          >
+            Disconnect
+          </button>
+        ) : null}
+      </div>
+      {msg ? <p className="mt-2 text-xs text-muted-foreground">{msg}</p> : null}
+    </ChannelShell>
   );
 }

@@ -16,4 +16,7 @@ pnpm-debug.log*
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
-Satoshi-Variable.zip
+*.zip
+
+# throwaway debugging scripts (underscore-prefixed)
+scripts/_*

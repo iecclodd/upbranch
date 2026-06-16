@@ -69,6 +69,17 @@ export async function runAi(
     });
     return { ok: true, text: result.text };
   } catch (err) {
+    // The provider call produced no output — release the reservation (actual 0)
+    // so a transient failure doesn't permanently count against the daily cap.
+    try {
+      await supabase.rpc("ai_settle", {
+        p_project_id: projectId,
+        p_est_output: estOutput,
+        p_actual_output: 0,
+      });
+    } catch {
+      /* best effort — the cap self-resets at midnight UTC regardless */
+    }
     if (isRateLimit(err)) {
       return { ok: false, reason: "rate_limited", message: "The AI provider is busy. Try again in a moment." };
     }

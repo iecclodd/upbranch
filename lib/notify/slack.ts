@@ -47,6 +47,7 @@ export async function notifySlackApproval(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text, blocks }),
       signal: AbortSignal.timeout(4_000),
+      redirect: "manual",
     });
   } catch {
     // best effort — never block or fail the gateway on a notification

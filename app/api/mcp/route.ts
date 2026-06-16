@@ -10,7 +10,11 @@ import {
   type ShieldMode,
 } from "@/lib/gateway/shield";
 import { isIngestionTool, isRiskyRawTool, riskLabel, wireName } from "@/lib/gateway/tools";
-import { notifySlackApproval } from "@/lib/notify/slack";
+import {
+  notifyApprovalChannels,
+  type NotifyChannels,
+  type TelegramConfig,
+} from "@/lib/notify/channels";
 import { McpHttpClient, truncateToolResult, type McpToolResult } from "@/lib/mcp/client";
 import { decryptSecret } from "@/lib/vault";
 import type { PolicyDecision, SandboxProfile, TransportConfig } from "@/lib/dashboard/types";
@@ -188,20 +192,45 @@ function redactResult(result: unknown): Record<string, unknown> {
   return { _redacted: true, bytes };
 }
 
-/** Notify the project's Slack channel that a call is held for approval. */
-async function notifyApprovalToSlack(
+/** Notify every channel a project configured that a call is held for approval. */
+async function dispatchApprovalNotice(
   ctx: AgentContext,
   tool: string,
   reason: string,
   risk: string,
 ): Promise<void> {
   try {
-    const { data } = await ctx.db.rpc("gateway_slack_webhook", { p_key_hash: ctx.keyHash });
-    const cipher = data as string | null;
-    if (!cipher) return;
-    const url = decryptSecret(cipher);
+    const { data } = await ctx.db.rpc("gateway_notify_channels", {
+      p_key_hash: ctx.keyHash,
+      p_proof: gatewayProof(),
+    });
+    const ciphers = (data ?? {}) as Record<string, string | null>;
+    const decrypt = (c: string | null | undefined): string | undefined => {
+      if (!c) return undefined;
+      try {
+        return decryptSecret(c);
+      } catch {
+        return undefined;
+      }
+    };
+    const channels: NotifyChannels = {
+      slack: decrypt(ciphers.slack),
+      discord: decrypt(ciphers.discord),
+      webhook: decrypt(ciphers.webhook),
+    };
+    const tg = decrypt(ciphers.telegram);
+    if (tg) {
+      try {
+        const parsed = JSON.parse(tg) as Partial<TelegramConfig>;
+        if (parsed.botToken && parsed.chatId) {
+          channels.telegram = { botToken: parsed.botToken, chatId: parsed.chatId };
+        }
+      } catch {
+        /* ignore a malformed telegram config */
+      }
+    }
     const site = process.env.NEXT_PUBLIC_SITE_URL;
-    await notifySlackApproval(url, {
+    await notifyApprovalChannels(channels, {
       tool,
       agent: ctx.agentName,
       reason,
@@ -209,7 +238,7 @@ async function notifyApprovalToSlack(
       dashboardUrl: site ? `${site}/dashboard/approvals` : undefined,
     });
   } catch {
-    // best effort
+    // best effort — notifications never block the gateway
   }
 }
 
@@ -607,7 +636,7 @@ async function handleToolCall(
       await enqueueDryRun(ctx, call, args, ticketId);
     }
 
-    await notifyApprovalToSlack(ctx, exposedTool, heldReason, risk);
+    await dispatchApprovalNotice(ctx, exposedTool, heldReason, risk);
 
     return textResult({
       status: "pending_approval",

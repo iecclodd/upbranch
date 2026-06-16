@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of Service" updated="June 11, 2026">
+    <LegalPage title="Terms of Service" updated="June 14, 2026">
       <LegalSection title="1. What Polyshield is">
         <p>
           Polyshield is a policy gateway for AI agents. It sits between your AI
@@ -90,14 +90,45 @@ export default function TermsPage() {
 
       <LegalSection title="7. Plans and billing">
         <p>
-          Free and paid plans are described in the app. Paid features, limits,
-          and pricing may change with notice. Taxes are your responsibility.
-          We may suspend or downgrade accounts that exceed plan limits or have
-          unpaid balances.
+          Free and paid plans are described in the app. Paid subscriptions are
+          billed in advance on a recurring monthly basis through Stripe and
+          auto-renew until you cancel. You can cancel anytime from the billing
+          page or the Stripe customer portal; cancellation stops future
+          renewals, and your access continues until the end of the current paid
+          period.
+        </p>
+        <p>
+          Fees are non-refundable except where required by law. Taxes are your
+          responsibility. Plan features, limits, and pricing may change with
+          notice. Downgrading to a lower plan may reduce your limits and disable
+          paid features — for example AI features, offline mode, additional
+          notification channels, and the advanced sandbox. We may suspend or
+          downgrade accounts that exceed plan limits or have unpaid balances.
         </p>
       </LegalSection>
 
-      <LegalSection title="8. Disclaimers">
+      <LegalSection title="8. AI features are assistive, not a guarantee">
+        <p>
+          Polyshield&apos;s optional AI features — risk summaries, policy
+          drafts, and audit digests — are advisory only. You are responsible for
+          reviewing their output and for the policies and approvals you
+          ultimately set. Enforcement is deterministic policy plus human
+          approval; AI does not make the allow/deny decision, and you should not
+          rely on it as if it did.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="9. Third-party notification integrations">
+        <p>
+          If you connect a notification destination — Slack, Discord, Telegram,
+          or a custom webhook — you are responsible for the credentials and
+          webhooks you provide and for the security of those destinations,
+          including who can access the channel that receives approval
+          notifications.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="10. Disclaimers">
         <p>
           The Service is provided &quot;as is&quot; and &quot;as available,&quot;
           without warranties of any kind, express or implied, including
@@ -108,7 +139,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Limitation of liability">
+      <LegalSection title="11. Limitation of liability">
         <p>
           To the maximum extent permitted by law, neither party will be liable
           for indirect, incidental, special, consequential, or punitive
@@ -120,17 +151,17 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Termination">
+      <LegalSection title="12. Termination">
         <p>
           You can stop using the Service and delete your account at any time.
           We may suspend or terminate the Service for breach of these Terms,
           to comply with law, or to protect the Service or its users. On
           termination, your right to use the Service ends; sections that by
-          their nature survive (including 8, 9, and 11) survive.
+          their nature survive (including 10, 11, and 13) survive.
         </p>
       </LegalSection>
 
-      <LegalSection title="11. General">
+      <LegalSection title="13. General">
         <p>
           These Terms are the entire agreement between us regarding the
           Service. We may update them; if a change is material we will give
