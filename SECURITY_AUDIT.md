@@ -3,8 +3,8 @@
 Date: 2026-06-16
 
 Repos reviewed:
-- `PolyShield-App` branch `main`, base commit `df06fa4`
-- `Polyshield` branch `main`, base commit `88ca8e2`
+- `PolyShield-App` branch `main`, starting commit `ec935bb`
+- `Polyshield` branch `main`, commit `696f92d`
 
 Known skipped broken features:
 - GitHub sign-in was not fixed. It was treated as known broken and not required for core local testing.
@@ -15,8 +15,10 @@ Known skipped broken features:
 - Read the attached prompt, both repos, README/setup docs, positioning/PRD refresh notes, package manifests, migrations, gateway routes, dashboard actions, runner code, sandbox code, and security helpers.
 - Used parallel subagents for architecture extraction, app security review, runner security review, test-gap review, dependency/supply-chain review, and baseline command discovery.
 - Ran local static review with targeted `rg`, manual code inspection, TypeScript, lint, build, npm audit, security unit scripts, runner tests, and a browser smoke test.
-- Started the Next app locally with dummy Supabase/vault env for public/auth-gate browser verification.
-- Checked local database execution options. Supabase CLI, Docker, and `psql` were not installed. The connected Supabase project appeared unrelated to Polyshield based on its migration history, so it was inspected read-only and not modified.
+- Started the Next app locally with dummy env first, then with the supplied live Supabase/vault env.
+- Applied `0016_security_audit_fixes.sql` to the supplied live Polyshield Supabase database through the Supabase pooler on port `6543` and verified the resulting policies/functions directly.
+- Created throwaway live test user/agent/runner/server records, paired the local runner through an isolated temp runner profile, discovered the test stdio MCP server, and exercised gateway calls, approvals, audit logs, prompt-injection shield output, and tool hiding.
+- Supabase CLI, Docker, and `psql` were not installed. Docker-enforced sandbox behavior was therefore still limited to unit coverage rather than live container execution.
 
 ## Findings Fixed
 
@@ -120,6 +122,21 @@ Fix:
 Tests:
 - `npm run test:security` verifies the agent id column, creation path, and polling join.
 
+### Medium: unknown/disabled tool denials were not written to the audit log
+
+Affected area: MCP gateway auditability.
+
+Exploit path: unknown and hidden tool calls failed closed to the agent, but exited before writing an `audit_log` row because the normal `gateway_log` RPC validates known catalog tools. This left default-deny attempts invisible in the dashboard.
+
+Fix:
+- Added `gateway_log_denial` in `0016_security_audit_fixes.sql` for denial-only pre-context audit rows.
+- Updated `app/api/mcp/route.ts` to log invalid, ambiguous, unknown, and disabled tool attempts with redacted argument metadata before returning the existing fail-closed error.
+
+Tests:
+- Live gateway call to `fake_unregistered_tool_2` returned `Unknown tool` and produced a dashboard-visible `deny` / `blocked` audit row with only argument keys and byte count.
+- After hiding `codexsafe050787.echo` in the tools UI, a gateway call returned `Unknown tool` and the runner did not execute another `echo`.
+- `npm run test:security` verifies the denial RPC remains security-definer and covered by execute revokes/grants.
+
 ### Medium: runner tokens could be sent to arbitrary HTTP URLs
 
 Affected area: `Polyshield` control-plane client.
@@ -162,8 +179,7 @@ Verification:
 - Full kernel-level sandboxing is still partial unless Docker containerization is enabled and succeeds. Host-mode still cannot guarantee true process containment for arbitrary trusted MCP servers.
 - MFA is still enforced mainly in Next middleware, not in Supabase RLS write policies. A future migration should require `aal2` for sensitive direct table writes where applicable.
 - The `Polyshield` repo still tracks `polyshield-runner.zip` and `youtube-research.sqlite`. No high-confidence secrets were found, but these opaque artifacts should be removed from source history if not required.
-- The new migration was not applied to a live Supabase database in this run because no real `SUPABASE_DB_URL` was available.
-- The only connected Supabase project exposed through the connector appeared unrelated to Polyshield, so no migration was applied there.
+- Supabase Auth on the supplied project requires email confirmation. The throwaway test user was confirmed directly through the database to complete local E2E; production signup still depends on email delivery.
 
 ## Validation Summary
 
@@ -174,4 +190,4 @@ Verification:
 - `npm run build` in `PolyShield-App`: failed without env, passed with dummy local Supabase/vault env.
 - `npm audit --audit-level=high` in both repos: passed, zero vulnerabilities.
 - `npm test` in `Polyshield`: passed, 26 checks.
-- Browser smoke: landing page, sign-in page, and unauthenticated dashboard redirect passed.
+- Browser/live E2E: signup, login, dashboard pages, local stdio server registration, runner pair/start/trust, tool discovery, tools/list, safe allowed call, prompt-injection flagging, approval denial, approval execution, disabled-tool denial, and audit log visibility passed against the supplied Supabase project.

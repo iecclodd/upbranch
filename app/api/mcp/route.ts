@@ -310,6 +310,26 @@ async function audit(
   return (data as string | null) ?? null;
 }
 
+async function auditDenial(
+  ctx: AgentContext,
+  exposedTool: string,
+  args: Record<string, unknown>,
+  reason: string,
+  requestId: string,
+): Promise<void> {
+  try {
+    await ctx.db.rpc("gateway_log_denial", {
+      p_key_hash: ctx.keyHash,
+      p_exposed_tool: exposedTool,
+      p_args: redactArgs(args),
+      p_reason: reason,
+      p_request_id: requestId,
+    });
+  } catch {
+    // A denial must stay fail-closed even if audit persistence is temporarily unavailable.
+  }
+}
+
 function withReasonParam(schema: Record<string, unknown>): Record<string, unknown> {
   if (schema?.type !== "object") return schema;
   return {
@@ -499,6 +519,7 @@ async function handleToolCall(
   // Bound the wire name before it reaches the DB or any error string — a
   // multi-megabyte / control-char name is never a real tool.
   if (typeof name !== "string" || name.length > 256 || !/^[A-Za-z0-9_.-]+$/.test(name)) {
+    await auditDenial(ctx, "invalid_tool_name", args, "Invalid tool name.", randomUUID());
     throw { code: -32602, message: "Unknown tool." };
   }
 
@@ -509,15 +530,18 @@ async function handleToolCall(
   });
   const call = data as CallContext | null;
   if (call?.ambiguous) {
+    await auditDenial(ctx, name, args, "Ambiguous tool name.", randomUUID());
     throw {
       code: -32602,
       message: `Ambiguous tool name "${name}": more than one tool maps to it. Rename one server's prefix to disambiguate.`,
     };
   }
   if (!call?.found || !call.tool || !call.server) {
+    await auditDenial(ctx, name, args, reason || "Unknown tool.", randomUUID());
     throw { code: -32602, message: `Unknown tool: ${name}` };
   }
   if (!call.tool.enabled) {
+    await auditDenial(ctx, name, args, reason || "Tool is disabled.", randomUUID());
     throw { code: -32602, message: `Unknown tool: ${name}` };
   }
 

@@ -43,6 +43,7 @@ for (const fn of [
   "dashboard_enqueue_restore_job",
   "gateway_create_approval",
   "gateway_check_approval",
+  "gateway_log_denial",
 ]) {
   check(`${fn}: security definer function exists`, has(new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${fn}\\b[\\s\\S]*?security\\s+definer`, "i")));
   check(`${fn}: public execute revoked`, has(new RegExp(`revoke\\s+execute\\s+on\\s+function\\s+public\\.${fn}\\b`, "i")));
@@ -53,6 +54,7 @@ check("approval agent scope column exists", has(/add\s+column\s+if\s+not\s+exist
 check("approval creation stores agent id", has(/project_id,\s+server_id,\s+audit_id,\s+policy_id,\s+agent_id,\s+agent,\s+exposed_tool/i));
 check("approval polling requires the creating agent", has(/join\s+public\.agents\s+a\s+on\s+a\.id\s*=\s*ap\.agent_id\s+and\s+a\.project_id\s*=\s*ap\.project_id/i));
 check("approval polling checks agent key", has(/where\s+a\.key_hash\s*=\s*p_key_hash\s+and\s+ap\.id\s*=\s*p_approval_id/i));
+check("unknown tool denials are audited", has(/insert\s+into\s+public\.audit_log\s*\([\s\S]*'deny',\s*'blocked'/i));
 check("privacy approval ciphertext is cleared on finalization", has(/set\s+result\s*=\s*v_result,\s*args_ciphertext\s*=\s*null/i));
 check("privacy approval args are redacted", has(/'_redacted',\s*true/i));
 check("approved runner enqueue requires enabled tool", has(/ct\.raw_name\s*=\s*p_raw_name\s+and\s+ct\.enabled\s*=\s*true/i));

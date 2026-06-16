@@ -187,6 +187,45 @@ as $$
     and ap.id = p_approval_id;
 $$;
 
+-- Unknown or disabled tool calls fail before there is a catalog row that
+-- `gateway_log` can validate. Log those denial attempts separately so default
+-- deny remains visible in the audit trail without letting agents forge allow
+-- or approval events.
+create or replace function public.gateway_log_denial (
+  p_key_hash text,
+  p_exposed_tool text,
+  p_args jsonb,
+  p_reason text,
+  p_request_id text
+)
+returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  v_agent record;
+  v_id uuid;
+begin
+  select id, name, project_id into v_agent from public.agents where key_hash = p_key_hash;
+  if not found then
+    return null;
+  end if;
+
+  insert into public.audit_log (
+    project_id, server_id, agent, exposed_tool, decision, status, args, reason,
+    result, risk, request_id, event_type
+  )
+  values (
+    v_agent.project_id, null, v_agent.name, left(coalesce(p_exposed_tool, 'unknown'), 256),
+    'deny', 'blocked', coalesce(p_args, '{}'::jsonb), left(coalesce(p_reason, 'Unknown tool.'), 2000),
+    null, 'unknown', p_request_id, 'tool_call'
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
 -- Narrow replacement for dashboard admin audit inserts.
 create or replace function public.dashboard_log_admin_event (
   p_project_id uuid,
@@ -520,6 +559,7 @@ revoke execute on function public.dashboard_enqueue_approved_runner_job (uuid, u
 revoke execute on function public.dashboard_enqueue_restore_job (uuid) from public;
 revoke execute on function public.gateway_create_approval (text, uuid, text, jsonb, text, uuid, uuid, jsonb, text, text, text) from public;
 revoke execute on function public.gateway_check_approval (text, uuid) from public;
+revoke execute on function public.gateway_log_denial (text, text, jsonb, text, text) from public;
 
 grant execute on function public.dashboard_log_admin_event (uuid, uuid, text, text) to authenticated;
 grant execute on function public.dashboard_claim_approval_decision (uuid, text) to authenticated;
@@ -528,3 +568,4 @@ grant execute on function public.dashboard_enqueue_approved_runner_job (uuid, uu
 grant execute on function public.dashboard_enqueue_restore_job (uuid) to authenticated;
 grant execute on function public.gateway_create_approval (text, uuid, text, jsonb, text, uuid, uuid, jsonb, text, text, text) to anon, authenticated, service_role;
 grant execute on function public.gateway_check_approval (text, uuid) to anon, authenticated, service_role;
+grant execute on function public.gateway_log_denial (text, text, jsonb, text, text) to anon, authenticated, service_role;
