@@ -80,19 +80,11 @@ async function logAdminEvent(
   projectId: string,
   event: { target: string; detail: string; serverId?: string | null },
 ): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  await supabase.from("audit_log").insert({
-    project_id: projectId,
-    server_id: event.serverId ?? null,
-    agent: user?.email ?? "dashboard",
-    exposed_tool: event.target,
-    decision: "allow",
-    status: "info",
-    event_type: "admin",
-    reason: event.detail,
-    args: {},
+  await supabase.rpc("dashboard_log_admin_event", {
+    p_project_id: projectId,
+    p_server_id: event.serverId ?? null,
+    p_target: event.target,
+    p_detail: event.detail,
   });
 }
 
@@ -861,34 +853,22 @@ async function executeApprovedStdio(
   args: Record<string, unknown>,
   meta: Record<string, unknown> = {},
 ): Promise<{ result: McpToolResult; ok: boolean }> {
-  const freshAfter = new Date(Date.now() - 90_000).toISOString();
-  const { data: online } = await supabase
-    .from("runners")
-    .select("id")
-    .eq("project_id", projectId)
-    .gt("last_seen_at", freshAfter)
-    .limit(1)
-    .maybeSingle();
-  if (!online) {
-    return failureResult(
-      "Approved, but no Polyshield local runner is online to execute this stdio call. Start the runner and approve again if needed.",
-    );
+  const { data } = await supabase.rpc("dashboard_enqueue_approved_runner_job", {
+    p_project_id: projectId,
+    p_server_id: serverId,
+    p_raw_name: rawName,
+    p_args: args,
+    p_meta: meta,
+  });
+  const job = data as { queued?: boolean; job_id?: string; reason?: string } | null;
+  if (!job?.queued || !job.job_id) {
+    if (job?.reason === "no_runner") {
+      return failureResult(
+        "Approved, but no Polyshield local runner is online to execute this stdio call. Start the runner and approve again if needed.",
+      );
+    }
+    return failureResult("Could not enqueue the runner job.");
   }
-
-  const { data: job } = await supabase
-    .from("runner_jobs")
-    .insert({
-      project_id: projectId,
-      server_id: serverId,
-      raw_name: rawName,
-      args,
-      agent: "approval-execute",
-      kind: "call",
-      meta,
-    })
-    .select("id")
-    .single();
-  if (!job) return failureResult("Could not enqueue the runner job.");
 
   const deadline = Date.now() + 55_000;
   while (Date.now() < deadline) {
@@ -896,7 +876,7 @@ async function executeApprovedStdio(
     const { data: row } = await supabase
       .from("runner_jobs")
       .select("status, result, error")
-      .eq("id", job.id)
+      .eq("id", job.job_id)
       .maybeSingle();
     if (!row) break;
     if (row.status === "done") {
@@ -943,11 +923,14 @@ async function executeApprovedCall(
 
   const { data: tool } = await supabase
     .from("catalog_tools")
-    .select("raw_name")
+    .select("raw_name, enabled")
     .eq("server_id", server.id)
     .eq("exposed_name", approval.exposed_tool)
     .maybeSingle();
   if (!tool) return failureResult("The tool is no longer in the catalog.");
+  if (!tool.enabled) {
+    return failureResult("The tool was disabled after approval was requested, so Polyshield did not execute it.");
+  }
 
   const transport = server.transport as TransportConfig;
   let executed: { result: McpToolResult; ok: boolean };
@@ -1014,6 +997,16 @@ async function executeApprovedCall(
   };
 }
 
+type ClaimedApproval = {
+  id: string;
+  audit_id: string | null;
+  server_id: string | null;
+  exposed_tool: string;
+  args: Record<string, unknown>;
+  args_ciphertext?: string | null;
+  approver: string | null;
+};
+
 async function decideApproval(
   approvalId: string,
   decision: "approved" | "denied",
@@ -1021,74 +1014,59 @@ async function decideApproval(
 ) {
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const approver = user?.email ?? "unknown";
 
   // Atomic claim — a second click or a racing approve/deny finds no row.
-  const { data: approval } = await supabase
-    .from("approvals")
-    .update({
-      status: decision,
-      approver,
-      decided_via: "dashboard",
-      decided_at: new Date().toISOString(),
-    })
-    .eq("id", approvalId)
-    .eq("project_id", projectId)
-    .eq("status", "pending")
-    .select("id, audit_id, server_id, exposed_tool, args")
-    .single();
+  const { data } = await supabase.rpc("dashboard_claim_approval_decision", {
+    p_approval_id: approvalId,
+    p_decision: decision,
+  });
+  const approval = data as ClaimedApproval | null;
   if (!approval) return;
+  const approver = approval.approver ?? "unknown";
 
   if (decision === "denied") {
-    if (approval.audit_id) {
-      await supabase
-        .from("audit_log")
-        .update({
-          status: "denied",
-          approver,
-          decided_via: "dashboard",
-          reason: "Denied by approver — not forwarded.",
-        })
-        .eq("id", approval.audit_id);
-    }
     revalidatePath("/dashboard", "layout");
     return;
+  }
+
+  let executionApproval = approval;
+  if (approval.args_ciphertext) {
+    try {
+      const decrypted = JSON.parse(decryptSecret(approval.args_ciphertext)) as Record<string, unknown>;
+      executionApproval = { ...approval, args: decrypted };
+    } catch {
+      executionApproval = approval;
+      const result = failureResult("Approved, but Polyshield could not decrypt the privacy-mode approval payload.");
+      await supabase.rpc("dashboard_finish_approval", {
+        p_approval_id: approvalId,
+        p_result: result.result,
+        p_audit_result: result.result,
+        p_status: "error",
+        p_reason: "Approved, but execution failed: privacy-mode approval payload could not be decrypted.",
+      });
+      revalidatePath("/dashboard", "layout");
+      return;
+    }
   }
 
   const { result, ok, shieldNote, original } = await executeApprovedCall(
     supabase,
     projectId,
-    approval,
+    executionApproval,
   );
   // The agent polling the ticket receives the screened result; the audit row
   // keeps the original so the operator can inspect quarantined content —
-  // unless privacy mode is on, in which case the audit result is redacted.
-  await supabase.from("approvals").update({ result }).eq("id", approvalId);
-  if (approval.audit_id) {
-    const { data: proj } = await supabase
-      .from("projects")
-      .select("privacy_mode")
-      .eq("id", projectId)
-      .maybeSingle();
-    const auditResult = proj?.privacy_mode
-      ? { _redacted: true, bytes: JSON.stringify(original ?? result ?? null).length }
-      : original ?? result;
-    await supabase
-      .from("audit_log")
-      .update({
-        status: ok ? "approved" : shieldNote ? "blocked" : "error",
-        approver,
-        decided_via: "dashboard",
-        reason: ok
-          ? `Approved — executed against the source MCP.${shieldNote ? ` ${shieldNote}` : ""}`
-          : shieldNote ?? "Approved, but execution failed.",
-        result: auditResult,
-      })
-      .eq("id", approval.audit_id);
-  }
+  // unless privacy mode is on, in which case the RPC redacts persisted result
+  // fields while preserving an MCP-shaped polling response.
+  await supabase.rpc("dashboard_finish_approval", {
+    p_approval_id: approvalId,
+    p_result: result,
+    p_audit_result: original ?? result,
+    p_status: ok ? "approved" : shieldNote ? "blocked" : "error",
+    p_reason: ok
+      ? `Approved — executed against the source MCP.${shieldNote ? ` ${shieldNote}` : ""}`
+      : shieldNote ?? "Approved, but execution failed.",
+  });
 
   // "Remember this rule": stop holding this tool — create an allow policy so
   // future identical calls pass without an approval. Only if one doesn't
@@ -1134,47 +1112,32 @@ export async function restoreSnapshotAction(snapshotId: string): Promise<ActionR
   const supabase = await createClient();
   const projectId = await currentProjectId(supabase);
 
-  const { data: snap } = await supabase
-    .from("runner_snapshots")
-    .select("id, server_id, ref, scope_path, status, label")
-    .eq("id", snapshotId)
-    .eq("project_id", projectId)
-    .maybeSingle();
-  if (!snap) return { error: "Snapshot not found." };
-  if (!snap.server_id) {
-    return { error: "The source server was removed, so this snapshot can't be restored." };
-  }
-  if (snap.status !== "available") {
-    return { error: "This snapshot can no longer be restored." };
-  }
-
-  const freshAfter = new Date(Date.now() - 90_000).toISOString();
-  const { data: online } = await supabase
-    .from("runners")
-    .select("id")
-    .eq("project_id", projectId)
-    .gt("last_seen_at", freshAfter)
-    .limit(1)
-    .maybeSingle();
-  if (!online) {
-    return { error: "No Polyshield runner is online to restore this snapshot. Start the runner and retry." };
-  }
-
-  // Enqueue a restore job for the runner; mark the snapshot in-flight.
-  await supabase.from("runner_jobs").insert({
-    project_id: projectId,
-    server_id: snap.server_id,
-    raw_name: "__restore__",
-    args: {},
-    agent: "snapshot-restore",
-    kind: "restore",
-    meta: { snapshotId: snap.id, ref: snap.ref, scopePath: snap.scope_path },
+  const { data } = await supabase.rpc("dashboard_enqueue_restore_job", {
+    p_snapshot_id: snapshotId,
   });
-  await supabase.from("runner_snapshots").update({ status: "restoring" }).eq("id", snap.id);
+  const queued = data as {
+    queued?: boolean;
+    reason?: string;
+    server_id?: string | null;
+    label?: string | null;
+  } | null;
+  if (!queued?.queued) {
+    if (queued?.reason === "missing_server" || queued?.reason === "unknown_server") {
+      return { error: "The source server was removed, so this snapshot can't be restored." };
+    }
+    if (queued?.reason === "not_available") {
+      return { error: "This snapshot can no longer be restored." };
+    }
+    if (queued?.reason === "no_runner") {
+      return { error: "No Polyshield runner is online to restore this snapshot. Start the runner and retry." };
+    }
+    return { error: "Snapshot not found." };
+  }
+
   await logAdminEvent(supabase, projectId, {
-    serverId: snap.server_id,
-    target: snap.label || "snapshot",
-    detail: `Restoring snapshot "${snap.label || snap.id}" — reverting the server's filesystem scope.`,
+    serverId: queued.server_id ?? null,
+    target: queued.label || "snapshot",
+    detail: `Restoring snapshot "${queued.label || snapshotId}" — reverting the server's filesystem scope.`,
   });
   revalidatePath("/dashboard", "layout");
   return {};

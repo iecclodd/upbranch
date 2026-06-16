@@ -16,7 +16,7 @@ import {
   type TelegramConfig,
 } from "@/lib/notify/channels";
 import { McpHttpClient, truncateToolResult, type McpToolResult } from "@/lib/mcp/client";
-import { decryptSecret } from "@/lib/vault";
+import { decryptSecret, encryptSecret } from "@/lib/vault";
 import type { PolicyDecision, SandboxProfile, TransportConfig } from "@/lib/dashboard/types";
 
 /**
@@ -533,9 +533,9 @@ async function handleToolCall(
   const sandbox = call.server.sandbox_profile;
   const tainted = call.taint?.tainted === true;
   const requestId = randomUUID();
-  // Privacy mode: redact args/results from the permanent audit log + stored
-  // results. (Pending approvals keep real args — they're a transient surface
-  // the operator opted into, and the args are needed to execute the call.)
+  // Privacy mode: redact args/results from permanent audit rows and approval
+  // display payloads. Pending approval args are encrypted separately for the
+  // later dashboard execution step, then cleared when the approval is decided.
   const privacy = call.privacy_mode === true;
   const auditArgs = privacy ? redactArgs(args) : args;
   const logResult = (r: unknown) => (privacy ? redactResult(r) : r);
@@ -596,6 +596,34 @@ async function handleToolCall(
     const heldReason = taintEscalated
       ? "Escalated to approval: this action follows untrusted data the agent ingested this session."
       : reason || policy?.description || "Held for approval.";
+    let approvalArgs = args;
+    let approvalArgsCiphertext: string | null = null;
+    if (privacy) {
+      try {
+        approvalArgs = redactArgs(args);
+        approvalArgsCiphertext = encryptSecret(JSON.stringify(args));
+      } catch {
+        await audit(ctx, {
+          serverId,
+          exposedTool,
+          decision,
+          status: "error",
+          args: auditArgs,
+          reason: "Could not encrypt privacy-mode approval payload.",
+          risk,
+          requestId,
+        });
+        return textResult(
+          {
+            status: "error",
+            tool: exposedTool,
+            message:
+              "Polyshield could not hold this call for approval because privacy mode requires the credential vault to encrypt approval payloads.",
+          },
+          true,
+        );
+      }
+    }
     const auditId = await audit(ctx, {
       serverId,
       exposedTool,
@@ -610,7 +638,7 @@ async function handleToolCall(
       p_key_hash: ctx.keyHash,
       p_server_id: serverId,
       p_exposed_tool: exposedTool,
-      p_args: args,
+      p_args: approvalArgs,
       p_reason: heldReason,
       p_policy_id: policy?.id ?? null,
       p_audit_id: auditId,
@@ -621,6 +649,7 @@ async function handleToolCall(
       },
       p_risk: risk,
       p_proof: gatewayProof(),
+      p_args_ciphertext: approvalArgsCiphertext,
     });
     const ticketId = typeof ticket === "string" ? ticket : null;
 

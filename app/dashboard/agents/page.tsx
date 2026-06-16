@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { Bot } from "lucide-react";
 import { getProfile } from "@/lib/auth/session";
 import { currentProjectId, getUsage, listAgents } from "@/lib/db/repository";
@@ -59,9 +60,9 @@ export default async function AgentsPage() {
       {atLimit ? (
         <div className="rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-800">
           You&apos;ve hit the {limit}-agent limit on the {profile?.plan} plan.{" "}
-          <a href="/#pricing" className="font-semibold underline">
+          <Link href="/#pricing" className="font-semibold underline">
             Upgrade
-          </a>{" "}
+          </Link>{" "}
           to add more.
         </div>
       ) : null}

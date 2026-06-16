@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { lookup as dnsLookupCb } from "node:dns";
+import type { IncomingHttpHeaders } from "node:http";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { isIP, type LookupFunction } from "node:net";
@@ -158,6 +159,13 @@ export interface McpToolResult {
 
 export class McpClientError extends Error {}
 
+type MinimalResponse = {
+  ok: boolean;
+  status: number;
+  headers: { get(name: string): string | null };
+  text(): Promise<string>;
+};
+
 /**
  * Render an endpoint as host-only for error messages. Full URLs can carry a
  * token in the query string; messages surface to the agent and audit log, so
@@ -171,7 +179,82 @@ function safeHost(endpoint: string): string {
   }
 }
 
-async function parseResponse(res: Response, id: number): Promise<JsonRpcMessage> {
+function headersGetter(headers: IncomingHttpHeaders): MinimalResponse["headers"] {
+  return {
+    get(name: string): string | null {
+      const value = headers[name.toLowerCase()];
+      if (Array.isArray(value)) return value.join(", ");
+      return value ?? null;
+    },
+  };
+}
+
+function guardedLookup(
+  hostname: string,
+  _options: unknown,
+  cb: (err: Error | null, address: string, family: number) => void,
+) {
+  dnsLookupCb(hostname, { all: true }, (err, addrs) => {
+    if (err) return cb(err, "", 0);
+    const ok = addrs.find((a) => !ipIsPrivate(a.address));
+    if (!ok) return cb(new Error("blocked: host resolves to a non-public address"), "", 0);
+    cb(null, ok.address, ok.family);
+  });
+}
+
+function guardedJsonPost(
+  endpoint: string,
+  headers: Record<string, string>,
+  payload: unknown,
+  timeoutMs: number,
+): Promise<MinimalResponse> {
+  return new Promise<MinimalResponse>((resolve, reject) => {
+    let url: URL;
+    try {
+      url = new URL(endpoint);
+    } catch {
+      reject(new McpClientError("Invalid endpoint URL."));
+      return;
+    }
+    const reqFn = url.protocol === "https:" ? httpsRequest : httpRequest;
+    const body = Buffer.from(JSON.stringify(payload));
+    const req = reqFn(
+      url,
+      {
+        method: "POST",
+        headers: { ...headers, "content-length": body.length },
+        lookup: guardedLookup as unknown as LookupFunction,
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        let bytes = 0;
+        res.on("data", (chunk: Buffer) => {
+          bytes += chunk.length;
+          if (bytes > 5_000_000) {
+            req.destroy(new McpClientError("MCP response too large."));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        res.on("end", () => {
+          const text = Buffer.concat(chunks).toString("utf8");
+          resolve({
+            ok: res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode ?? 0,
+            headers: headersGetter(res.headers),
+            text: async () => text,
+          });
+        });
+      },
+    );
+    req.on("error", (err) => reject(err));
+    req.on("timeout", () => req.destroy(new McpClientError(`Timed out reaching ${safeHost(endpoint)}`)));
+    req.end(body);
+  });
+}
+
+async function parseResponse(res: MinimalResponse, id: number): Promise<JsonRpcMessage> {
   const contentType = res.headers.get("content-type") ?? "";
   const text = await res.text();
   if (contentType.includes("text/event-stream")) {
@@ -225,25 +308,20 @@ export class McpHttpClient {
     return h;
   }
 
-  private async post(payload: unknown, timeoutMs: number): Promise<Response> {
+  private async post(payload: unknown, timeoutMs: number): Promise<MinimalResponse> {
     // Validate once per client; the endpoint is fixed for its lifetime.
     if (!this.urlVerified) {
       await assertPublicUrl(this.endpoint);
       this.urlVerified = true;
     }
     try {
-      return await fetch(this.endpoint, {
-        method: "POST",
-        headers: this.headers(),
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(timeoutMs),
-        // Don't follow cross-host redirects into internal space (SSRF). A 3xx
-        // surfaces as an opaque response and is treated as a transport error.
-        redirect: "manual",
-      });
+      // Node's request API does not auto-follow redirects. The guarded lookup
+      // validates the address used for this connection, closing DNS-rebinding
+      // gaps between endpoint registration and tool execution.
+      return await guardedJsonPost(this.endpoint, this.headers(), payload, timeoutMs);
     } catch (err) {
       throw new McpClientError(
-        err instanceof Error && err.name === "TimeoutError"
+        err instanceof Error && (err.name === "TimeoutError" || err.message.startsWith("Timed out"))
           ? `Timed out reaching ${safeHost(this.endpoint)}`
           : `Could not reach ${safeHost(this.endpoint)}`,
       );

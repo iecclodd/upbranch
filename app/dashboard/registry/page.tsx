@@ -34,7 +34,7 @@ export default async function RegistryPage() {
             </div>
 
             <p className="mt-3 text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground/70">Why it's risky:</span> {entry.riskReason}
+              <span className="font-semibold text-foreground/70">Why it&apos;s risky:</span> {entry.riskReason}
             </p>
 
             {entry.recommendedPolicies.length > 0 ? (
