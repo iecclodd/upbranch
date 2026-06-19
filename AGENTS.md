@@ -131,3 +131,23 @@ After work, summarize:
 Keep summaries short. Do not explain obvious edits.
 
 Oververbosity:low
+
+## Codex Subagent Policy
+
+- Codex should use parallel subagents for nontrivial work when there are independent workstreams.
+- Fanout must be justified by independent workstreams; prefer 4-8 agents for normal tasks.
+- Use 8-12 only for large independent modules, audits, migrations, security sweeps, or test/review passes.
+- Do not spawn agents that edit the same file at the same time.
+- Keep `max_depth = 1` unless the repo-specific config explains why `2` is justified.
+- Always use a read-only scout before major edits.
+- Always use independent tester/reviewer agents before claiming completion.
+- Use CSV fanout for repeated independent tasks like migration reviews, gateway module audits, policy-test sweeps, or component checks.
+
+## Codex Project Profile
+
+- Purpose: PolyShield web app and gateway surface for AI/tool-call security, audit, policy, and billing workflows.
+- Stack: Next.js, TypeScript, Tailwind/shadcn-style components, Supabase migrations, and Node test scripts.
+- Important directories: `app/`, `components/`, `lib/gateway/`, `lib/notify/`, `scripts/`, `supabase/migrations/`, and `docs/`.
+- Commands discovered: `npm run dev`, `npm run build`, `npm run lint`, `npm run typecheck`, and `npm run test:security`.
+- Recommended roles: `repo_scout`, `architect`, `gateway_security_reviewer`, `db_migration_reviewer`, `implementer`, `tester`, `reviewer`, `security_auditor`, and `release_manager`.
+- Never use real production Supabase, Slack, billing, or provider credentials without explicit approval.
