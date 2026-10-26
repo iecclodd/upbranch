@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteShell } from "@/components/upbranch/ui/site-shell";
 import { MissionPlayer } from "@/components/upbranch/labs/mission-player";
@@ -8,5 +9,13 @@ export default async function LabPage({ params }: { params: Promise<{ missionId:
   const { missionId } = await params;
   const mission = getMission(missionId);
   if (!mission || !mission.published) notFound();
-  return <SiteShell><main id="main-content" tabIndex={-1} className="mx-auto max-w-7xl px-4 py-10 text-[#20251f] md:px-8"><h1 className="mb-6 text-4xl font-semibold">{mission.title}</h1>{mission.id === 'first-agent' ? <FirstAgentMission /> : <MissionPlayer key={mission.id} mission={mission} />}</main></SiteShell>;
+  return (
+    <SiteShell>
+      <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[1600px] px-4 py-6 text-[#20251f] md:px-8">
+        <Link href="/labs" className="text-sm font-semibold text-[#486b3b] hover:underline">← All labs</Link>
+        <h1 className="mb-5 mt-3 text-3xl font-semibold">{mission.title}</h1>
+        {mission.id === "first-agent" ? <FirstAgentMission /> : <MissionPlayer key={mission.id} mission={mission} />}
+      </main>
+    </SiteShell>
+  );
 }

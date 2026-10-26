@@ -1,0 +1,53 @@
+.dashboard, .guided { color: #20291f; }
+.dashboard { width: min(90%, 1050px); margin: auto; padding: 60px 0 80px; }
+.dashboard h1 { margin: 0; font-size: clamp(40px, 5vw, 64px); letter-spacing: -.04em; }
+.dashboard > p { color: #667263; line-height: 1.6; margin: 12px 0 24px; }
+.primary { display: inline-flex; align-items: center; justify-content: center; gap: 12px; border: 0; background: #20291f; color: white !important; padding: 12px 18px; text-decoration: none; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.primary:hover { background: #40543b; }
+.labList { margin-top: 36px; border: 1px solid #dce3d7; background: white; }
+.listHeader { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 22px; background: #e9f1e3; }
+.listHeader h2 { margin: 0; font-size: 19px; }
+.listHeader span, .rowStatus { font-size: 12px; color: #61745a; }
+.labRow { display: flex; align-items: center; gap: 18px; padding: 18px 22px; border-top: 1px solid #edf0eb; color: inherit; text-decoration: none; }
+.labRow:hover { background: #f8fbf6; }
+.rowNumber { display: grid; place-items: center; width: 32px; height: 32px; flex: none; background: #edf5e8; color: #55724b; font-weight: 700; }
+.rowTitle { display: grid; gap: 5px; flex: 1; }
+.rowTitle span { font-size: 12px; color: #667263; }
+.rowStatus { white-space: nowrap; font-weight: 700; }
+.guided { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.4fr); min-height: 560px; border: 1px solid #dce3d7; background: white; }
+.guidePane { border-right: 1px solid #dce3d7; background: #f6f8f3; min-width: 0; }
+.paneTabs { display: flex; gap: 24px; padding: 0 24px; border-bottom: 1px solid #dce3d7; }
+.paneTabs button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 16px 0 13px; font: inherit; font-size: 13px; font-weight: 700; color: #667263; cursor: pointer; }
+.paneTabs button[aria-pressed=true] { border-color: #648b50; color: #294b25; }
+.guideContent, .exercise { padding: 28px; min-width: 0; }
+.guideContent h2, .exercise h2 { margin: 0 0 14px; font-size: 24px; line-height: 1.2; }
+.guideContent p, .guideContent li, .exercise p { line-height: 1.65; }
+.guideContent p, .guideContent li { font-size: 14px; color: #51604d; }
+.guideContent li { margin: 8px 0; }
+.guideContent details { margin-top: 24px; border-top: 1px solid #dce3d7; padding-top: 16px; }
+.guideContent summary, .activity summary { cursor: pointer; font-weight: 700; }
+.guideContent a { color: #446e37; text-decoration: underline; }
+.reference { margin: 22px 0; }
+.reference h3 { font-size: 15px; margin: 0; }
+.reference pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #e9f1e3; padding: 12px; font-size: 12px; }
+.kicker { margin: 0 0 9px; font-size: 11px; color: #5c8050; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+.exercise > p, .exercise > div > p { max-width: 750px; }
+.choices { display: grid; gap: 10px; margin: 24px 0; }
+.choices button { text-align: left; border: 1px solid #d9e3d4; background: #fff; padding: 15px; color: inherit; font: inherit; line-height: 1.5; cursor: pointer; }
+.choices button:hover { background: #f3f8f0; border-color: #82a871; }
+.note { color: #667263; font-size: 13px; }
+.actions { display: flex; gap: 20px; border-top: 1px solid #e2e9df; padding-top: 20px; margin-top: 28px; }
+.actions button { border: 0; background: none; padding: 0; color: #466b3c; text-decoration: underline; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.actions button:disabled { opacity: .45; cursor: default; }
+.activity { margin-top: 26px; border-top: 1px solid #e2e9df; padding-top: 18px; font-size: 13px; color: #5a6856; }
+.activity li { margin-bottom: 18px; }
+.activity p { margin: 6px 0; }
+.dashboard :is(a, button):focus-visible, .guided :is(a, button, summary):focus-visible { outline: 3px solid #76a354; outline-offset: 3px; }
+@media (max-width: 760px) {
+  .dashboard { padding-top: 40px; }
+  .guided { grid-template-columns: 1fr; }
+  .guidePane { border-right: 0; border-bottom: 1px solid #dce3d7; }
+  .guideContent, .exercise { padding: 20px; }
+  .labRow { padding: 16px; gap: 10px; }
+  .listHeader { padding: 16px; }
+}
