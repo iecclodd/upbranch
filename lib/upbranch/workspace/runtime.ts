@@ -22,16 +22,17 @@ export interface WorkspaceCheck { id: string; label: string; passed: boolean; de
 export interface WorkspacePolicyResult {
   decision: WorkspaceDecision;
   matchingRule: string;
+  condition: string | null;
   explanation: string;
   request: { action: string; path: string };
 }
 
-export const DEFAULT_BRIEF = "Title: Neighborhood Garden\nAudience: local gardeners\nInclude an introduction and a contact button.";
+export const DEFAULT_BRIEF = "Title: School Garden Club\nAudience: students and families\nInclude an introduction and a contact button.";
 
 export const REQUEST_FIXTURES: readonly { key: RequestKey; title: string; description: string; defaultDecision: WorkspaceDecision }[] = [
   { key: "read-project", title: "Read a project file", description: "Read the fictional index.html file.", defaultDecision: "allow" },
-  { key: "publish-project", title: "Publish the project", description: "Request permission to publish a fictional project.", defaultDecision: "require_approval" },
-  { key: "read-sensitive", title: "Read a sensitive file", description: "Attempt to inspect a fictional secrets file.", defaultDecision: "deny" },
+  { key: "publish-project", title: "Publish project preview", description: "Simulate a request to publish the project preview; nothing is made public.", defaultDecision: "require_approval" },
+  { key: "read-sensitive", title: "Read a sensitive file", description: "Attempt to inspect fictional private student records; no real data is used.", defaultDecision: "deny" },
 ];
 
 const FEATURE_PATTERNS: readonly [string, RegExp][] = [
@@ -111,7 +112,7 @@ export function repairProject(project: WorkspaceProject): WorkspaceProject {
 export function evaluateWorkspaceRequest(key: RequestKey, learnerDecision?: WorkspaceDecision): WorkspacePolicyResult {
   const fixture = REQUEST_FIXTURES.find((item) => item.key === key);
   if (!fixture) throw new Error("Unknown workspace request");
-  const request = key === "read-project" ? { action: "read", path: "project/index.html" } : key === "publish-project" ? { action: "publish", path: "project/" } : { action: "read", path: "private/secrets.txt" };
+  const request = key === "read-project" ? { action: "read", path: "project/index.html" } : key === "publish-project" ? { action: "publish", path: "project/" } : { action: "read", path: "private/student-records.csv" };
   const chosen = learnerDecision && ["allow", "require_approval", "deny"].includes(learnerDecision) ? learnerDecision : fixture.defaultDecision;
   const rules: { decision: WorkspaceDecision; condition?: string; name: string }[] = [
     { decision: "deny", condition: 'path startsWith "private/"', name: "Protected fictional files" },
@@ -121,5 +122,5 @@ export function evaluateWorkspaceRequest(key: RequestKey, learnerDecision?: Work
   const decision = result.decision as WorkspaceDecision;
   const matchingRule = result.policy?.name ?? "Default allow";
   const explanation = result.policy?.name === "Protected fictional files" ? "The explicit protected-file deny takes precedence over the learner's policy." : decision === "allow" ? "The learner's policy allows this simulated request." : decision === "require_approval" ? "The learner's policy requires approval before this simulated request." : "The learner's policy denies this simulated request.";
-  return { decision, matchingRule, explanation, request };
+  return { decision, matchingRule, condition: result.policy?.condition ?? null, explanation, request };
 }

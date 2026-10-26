@@ -15,6 +15,7 @@ test("specific instructions change the generated project", () => {
 
 test("repair turns failed mission checks into visible file changes", () => {
   const before = generateProject(DEFAULT_BRIEF);
+  assert.match(before.previewHtml, /School Garden Club/);
   assert.deepEqual(inspectProject(before).filter((check) => !check.passed).map((check) => check.id), ["cards", "mobile", "data"]);
   const after = repairProject(before);
   assert.equal(inspectProject(after).every((check) => check.passed), true);
@@ -41,5 +42,8 @@ test("actual policy evaluator enforces learner choice and explicit deny", () => 
   const protectedFile = evaluateWorkspaceRequest("read-sensitive", "allow");
   assert.equal(protectedFile.decision, "deny");
   assert.equal(protectedFile.matchingRule, "Protected fictional files");
+  assert.equal(protectedFile.condition, 'path startsWith "private/"');
+  assert.equal(protectedFile.request.path, "private/student-records.csv");
+  assert.equal(evaluateWorkspaceRequest("publish-project").condition, null);
   assert.match(protectedFile.explanation, /precedence/);
 });
