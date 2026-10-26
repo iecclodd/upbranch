@@ -4,10 +4,11 @@
 
 - Public home: https://upbranch.vercel.app
 - Course: https://upbranch.vercel.app/learn
+- Guided labs: https://upbranch.vercel.app/labs
 - Hands-on mission: https://upbranch.vercel.app/learn/first-agent
 - Repository: https://github.com/iecclodd/upbranch
-- Tested/deployed product commit: d79b6fd47462f31b82f79c8834422788759d7232
-- Production deployment: dpl_AaWK5hkCoRj2nN43ZidUGo5VHp1b, READY and promoted in the user's own Vercel project.
+- Tested/deployed product commit: 2a5cd4b0b922a8f3d35fa5a7965845cd759c3b6a
+- Production deployment: dpl_AE9ihtRSs1YDcLPWZEv5v2Vd7Qiq, READY and promoted in the user's own Vercel project.
 - Editable checkout: C:\Users\azaan\Documents\Codex\2026-10-26\do-th\outputs\upbranch
 - Local development: http://127.0.0.1:3000
 
@@ -26,6 +27,10 @@ Later documentation-only commits do not alter the deployed product. The user can
 Preserve unrelated edits and inspect `git status` first. Do not modify existing dashboard/auth/gateway/migrations as part of learner changes.
 
 ## Verification
+
+The current release reworks all three labs around original CodeHS-inspired Instructions/Docs beside the activity. A validated assignment list resumes the first unfinished lab; the workspace has four evidence-driven checkpoints, contextual reference examples, hints and Back/Next. Both public route aliases share `LabActivity`. See `LAB_SYSTEM.md` for official CodeHS, Codecademy and freeCodeCamp design references, file ownership, requested agent routes, checks and limits.
+
+Current release gates passed: typecheck, lint, all 17 learning groups (including two guide/documentation groups and 438 legacy paths), 132 security checks, independent source review, cloud build READY and independent public smoke for all 30 routes with no redirects and unknown IDs returning 404. Browser checks covered the full local checkpoint sequence, protected Allow remaining blocked without satisfying learner denial, separate mock approval, completion/revocation, decision feedback/Back/debrief/refresh persistence, correct 2-of-3 assignment progress/resume, and mobile navigation. The deployed browser confirmed Docs beside the working preview, checkpoint Next and 5/5 checks. `outputs/screenshots/guided-lab-docs.png` records the current public lab.
 
 The current interface cleanup removes repeated copy, competing sections and duplicate controls. Optional sources, progress explanations, filters, technical details and passing checks expand on demand. The workspace leads with its preview and supplies contextual review actions. See `DECLUTTER.md` for changed surfaces, ownership, requested agent routes and evidence. No dependency, catalog, progress schema or policy runtime changed in this cleanup.
 
@@ -54,4 +59,4 @@ See `KIT_COVERAGE.md` for the original R0/R1/R2 requirement comparison; the enti
 
 Use the current production build for the user's own recording. The old screenshot walkthrough predates workspace/course changes. `EDIT_AND_RECORD.txt` beside the checkout gives edit paths and a current sequence. No contest submission or acceptance has occurred.
 
-Team routes and evidence are in `VALIDATION.md`, `WORKSPACE_UPGRADE.md`, `COURSE_SOURCES.md` and `DECLUTTER.md`. Requested Luna/Terra/Sol routing is documented; effective routing was not independently observable.
+Team routes and evidence are in `VALIDATION.md`, `WORKSPACE_UPGRADE.md`, `COURSE_SOURCES.md`, `DECLUTTER.md` and `LAB_SYSTEM.md`. Requested Luna/Terra/Sol routing is documented; effective routing was not independently observable.
