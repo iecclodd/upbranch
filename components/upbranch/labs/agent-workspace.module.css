@@ -511,3 +511,151 @@
     grid-template-columns: 1fr;
   }
 }
+/* Guided lab reading and working panes */
+.main {
+  grid-template-columns: minmax(270px, 0.8fr) minmax(0, 1.6fr);
+  padding-top: 18px;
+  align-items: start;
+}
+.readingPane {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.readingPane h2 {
+  margin: 18px 0 4px;
+  font-size: 19px;
+}
+.readingPane > p {
+  color: #687365;
+}
+.readingTabs {
+  display: flex;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.readingTabs button {
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #687365;
+  font-weight: 700;
+}
+.readingTabs button[aria-pressed="true"] {
+  color: var(--ink);
+  border-color: #799f53;
+}
+.checkpoints {
+  display: grid;
+  gap: 4px;
+  margin: 18px 0;
+}
+.checkpoints button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  color: var(--ink);
+}
+.checkpoints button[aria-current="step"] {
+  background: #edf5e6;
+  font-weight: 700;
+}
+.checkpoints button span:first-child {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  background: #e8ede3;
+  font-size: 11px;
+}
+.checkpoints button svg {
+  margin-left: auto;
+  color: #4a8c39;
+}
+.guideContent {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.guideContent h3 {
+  margin: 10px 0 4px;
+  font-size: 15px;
+}
+.guideContent ol,
+.guideContent ul {
+  padding-left: 20px;
+}
+.guideContent li {
+  margin: 7px 0;
+}
+.guideContent pre {
+  overflow: auto;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f5f7f2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.guideContent .planCard {
+  margin-top: 16px;
+}
+.guideNav {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+.guideNav button {
+  border: 1px solid #dce5d5;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: #f8faf6;
+  color: #385b2d;
+  font-weight: 700;
+}
+.workbench > .briefCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+}
+.workbench > .briefCard label {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.workbench > .briefCard textarea {
+  min-height: 90px;
+}
+.workbench > .briefCard .runButton {
+  width: auto;
+  align-self: end;
+}
+.workbench > .briefCard .runButton span {
+  display: none;
+}
+@media (max-width: 900px) {
+  .main {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .workbench > .briefCard {
+    grid-template-columns: 1fr;
+  }
+  .workbench > .briefCard label {
+    grid-column: auto;
+  }
+}

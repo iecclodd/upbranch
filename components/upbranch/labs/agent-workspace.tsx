@@ -27,6 +27,7 @@ import {
   type WorkspacePolicyResult,
   type WorkspaceProject,
 } from "@/lib/upbranch/workspace/runtime";
+import { getLabGuide } from "@/lib/upbranch/labs/guides";
 import styles from "./agent-workspace.module.css";
 
 type Props = {
@@ -70,6 +71,11 @@ function lineChanges(before: string, after: string) {
 }
 
 export function AgentWorkspace({ onComplete, onReset }: Props) {
+  const [activeCheckpoint, setActiveCheckpoint] = useState(0);
+  const [readingTab, setReadingTab] = useState<"instructions" | "docs">(
+    "instructions",
+  );
+  const guide = getLabGuide("first-agent");
   const [brief, setBrief] = useState(DEFAULT_BRIEF);
   const [project, setProject] = useState<WorkspaceProject | null>(null);
   const [baseline, setBaseline] = useState<WorkspaceProject | null>(null);
@@ -82,7 +88,6 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
   );
   const [policy, setPolicy] = useState<WorkspacePolicyResult | null>(null);
   const [history, setHistory] = useState<string[]>([]);
-  const [repaired, setRepaired] = useState(false);
   const [sensitiveDenied, setSensitiveDenied] = useState(false);
   const [publishApproved, setPublishApproved] = useState(false);
   const [publishPending, setPublishPending] = useState(false);
@@ -94,6 +99,13 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
   const oldFile = baseline?.files.find((file) => file.path === selectedFile);
   const allPassing = !!checks?.length && checks.every((check) => check.passed);
   const qualifies = allPassing && sensitiveDenied && publishApproved;
+  const checkpointDone = [
+    !!project,
+    allPassing,
+    sensitiveDenied,
+    publishApproved,
+  ];
+  const checkpoint = guide?.checkpoints[activeCheckpoint];
 
   useEffect(() => {
     if (qualifies === completed) return;
@@ -120,6 +132,16 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     setCompleted(false);
     onReset?.();
   }
+  function selectCheckpoint(index: number) {
+    setActiveCheckpoint(index);
+    if (index === 0) setTab("preview");
+    if (index === 1) setTab("tests");
+    if (index >= 2) {
+      setTab("policy");
+      setRequestKey(index === 2 ? "read-sensitive" : "publish-project");
+      setPolicy(null);
+    }
+  }
   function run() {
     invalidateArtifactReview();
     const next = generateProject(brief);
@@ -128,6 +150,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     setSelectedFile(next.files[0]?.path ?? "");
     setChecks(null);
     setTab("preview");
+    setActiveCheckpoint(0);
     record(`Generated ${next.files.length} fictional files from your brief.`);
   }
   function test() {
@@ -146,9 +169,9 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     setProject(next);
     setBrief(next.analysis.prompt);
     setChecks(null);
-    setRepaired(true);
     setFileView("changes");
-    setTab("preview");
+    setTab("tests");
+    setActiveCheckpoint(1);
     record(
       "Applied a targeted repair to the missing requirements. Run the checks again to verify it.",
     );
@@ -187,6 +210,8 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     );
   }
   function reset() {
+    setActiveCheckpoint(0);
+    setReadingTab("instructions");
     setBrief(DEFAULT_BRIEF);
     setProject(null);
     setBaseline(null);
@@ -227,14 +252,148 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
           </button>
         </div>
       </header>
-      <p className={styles.requirements}>
-        Build a school club site with three cards, a mobile layout, and fictional data.
-      </p>
       <div className={styles.main}>
-        <div className={styles.left}>
+        <aside className={styles.readingPane} aria-label="Lab guide">
+          <div className={styles.readingTabs} aria-label="Guide views">
+            <button
+              aria-pressed={readingTab === "instructions"}
+              onClick={() => setReadingTab("instructions")}
+            >
+              Instructions
+            </button>
+            <button
+              aria-pressed={readingTab === "docs"}
+              onClick={() => setReadingTab("docs")}
+            >
+              Docs
+            </button>
+          </div>
+          {guide ? (
+            <>
+              <h2>{guide.title}</h2>
+              <p>{guide.description}</p>
+              <nav className={styles.checkpoints} aria-label="Checkpoints">
+                {guide.checkpoints.map((item, index) => (
+                  <button
+                    key={item.id}
+                    aria-current={
+                      activeCheckpoint === index ? "step" : undefined
+                    }
+                    onClick={() => selectCheckpoint(index)}
+                  >
+                    <span>{index + 1}</span>
+                    <span>{item.title}</span>
+                    {checkpointDone[index] && (
+                      <Check size={14} aria-label="Complete" />
+                    )}
+                  </button>
+                ))}
+              </nav>
+              {checkpoint &&
+                (readingTab === "instructions" ? (
+                  <div className={styles.guideContent}>
+                    <h3>{checkpoint.title}</h3>
+                    <p>{checkpoint.task}</p>
+                    <ol>
+                      {checkpoint.steps.map((step, index) => (
+                        <li key={index}>{step}</li>
+                      ))}
+                    </ol>
+                    <details className={styles.details}>
+                      <summary>Hint</summary>
+                      <p>{checkpoint.hint}</p>
+                      {activeCheckpoint === 1 && project && !allPassing && (
+                        <button
+                          className={styles.secondaryButton}
+                          onClick={fix}
+                        >
+                          <Wrench size={14} /> Fix missing requirements
+                        </button>
+                      )}
+                    </details>
+                    <div className={styles.guideNav}>
+                      <button
+                        onClick={() => selectCheckpoint(activeCheckpoint - 1)}
+                        disabled={activeCheckpoint === 0}
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={() => selectCheckpoint(activeCheckpoint + 1)}
+                        disabled={
+                          !checkpointDone[activeCheckpoint] ||
+                          activeCheckpoint === guide.checkpoints.length - 1
+                        }
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.guideContent}>
+                    {checkpoint.reference.map((reference, index) => (
+                      <section key={index}>
+                        <h3>{reference.title}</h3>
+                        <p>{reference.body}</p>
+                        {reference.example && <pre>{reference.example}</pre>}
+                        {reference.href && (
+                          <a href={reference.href}>Read more</a>
+                        )}
+                      </section>
+                    ))}
+                    {guide.resources.length > 0 && (
+                      <section>
+                        <h3>Resources</h3>
+                        <ul>
+                          {guide.resources.map((resource) => (
+                            <li key={resource.href}>
+                              <a href={resource.href}>{resource.title}</a>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+                    <details className={styles.planCard}>
+                      <summary>Interpretation</summary>
+
+                      <div className={styles.planRow}>
+                        <span>PROJECT</span>
+                        <strong>{analysis.title || "Not specified"}</strong>
+                      </div>
+                      <div className={styles.planRow}>
+                        <span>AUDIENCE</span>
+                        <strong>{analysis.audience || "Not specified"}</strong>
+                      </div>
+                      <div className={styles.planRow}>
+                        <span>RECOGNIZED</span>
+                        <strong>
+                          {analysis.recognized.length
+                            ? analysis.recognized.join(" · ")
+                            : "No supported requirements yet"}
+                        </strong>
+                      </div>
+                      {analysis.missing.length > 0 && (
+                        <div className={styles.planMissing}>
+                          <span>STILL UNCLEAR</span>
+                          <p>{analysis.missing.join(" · ")}</p>
+                        </div>
+                      )}
+                    </details>
+                  </div>
+                ))}
+            </>
+          ) : (
+            <p>Lab guide unavailable.</p>
+          )}
+        </aside>
+
+        <section
+          className={styles.workbench}
+          aria-label="Generated project workbench"
+        >
           <section className={styles.briefCard}>
             <label htmlFor="agent-brief" className={styles.label}>
-              Instructions
+              Brief
             </label>
             <textarea
               id="agent-brief"
@@ -243,13 +402,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
               rows={5}
               maxLength={2000}
             />
-            <details className={styles.details}>
-              <summary>Supported instructions</summary>
-              <p>
-                Try three project cards, a mobile-friendly layout, and fictional
-                sample data.
-              </p>
-            </details>
+
             <button
               className={styles.runButton}
               onClick={run}
@@ -260,37 +413,6 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
               <span>↗</span>
             </button>
           </section>
-          <details className={styles.planCard}>
-            <summary>Interpretation</summary>
-
-            <div className={styles.planRow}>
-              <span>PROJECT</span>
-              <strong>{analysis.title || "Not specified"}</strong>
-            </div>
-            <div className={styles.planRow}>
-              <span>AUDIENCE</span>
-              <strong>{analysis.audience || "Not specified"}</strong>
-            </div>
-            <div className={styles.planRow}>
-              <span>RECOGNIZED</span>
-              <strong>
-                {analysis.recognized.length
-                  ? analysis.recognized.join(" · ")
-                  : "No supported requirements yet"}
-              </strong>
-            </div>
-            {analysis.missing.length > 0 && (
-              <div className={styles.planMissing}>
-                <span>STILL UNCLEAR</span>
-                <p>{analysis.missing.join(" · ")}</p>
-              </div>
-            )}
-          </details>
-        </div>
-        <section
-          className={styles.workbench}
-          aria-label="Generated project workbench"
-        >
           <div className={styles.panelTabs} aria-label="Workspace views">
             <button
               aria-pressed={tab === "preview"}
@@ -483,48 +605,60 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                 {checks ? (
                   <>
                     <div className={styles.checkList}>
-                      {checks.filter((check) => !check.passed).map((check) => (
-                        <div key={check.id} className={styles.checkRow}>
-                          <span
-                            className={check.passed ? styles.pass : styles.fail}
-                          >
-                            {check.passed ? <Check size={14} /> : "!"}
-                          </span>
-                          <div>
-                            <strong>{check.label}</strong>
-                            <p>{check.detail}</p>
+                      {checks
+                        .filter((check) => !check.passed)
+                        .map((check) => (
+                          <div key={check.id} className={styles.checkRow}>
+                            <span
+                              className={
+                                check.passed ? styles.pass : styles.fail
+                              }
+                            >
+                              {check.passed ? <Check size={14} /> : "!"}
+                            </span>
+                            <div>
+                              <strong>{check.label}</strong>
+                              <p>{check.detail}</p>
+                            </div>
+                            <span className={styles.checkStatus}>
+                              {check.passed ? "PASS" : "NEEDS WORK"}
+                            </span>
                           </div>
-                          <span className={styles.checkStatus}>
-                            {check.passed ? "PASS" : "NEEDS WORK"}
-                          </span>
-                        </div>
-                      ))}
+                        ))}
                     </div>
-                    {checks.some((check) => check.passed) && <details className={styles.details}>
-                      <summary>{checks.filter((check) => check.passed).length} checks passed</summary>
-                      <ul>{checks.filter((check) => check.passed).map((check) => <li key={check.id}>{check.label}: {check.detail}</li>)}</ul>
-                    </details>}
-                    {!allPassing && (
-                      <div className={styles.fixCallout}>
-                        <button onClick={fix}>
-                          <Wrench size={14} /> Fix missing requirements
-                        </button>
-                      </div>
+                    {checks.some((check) => check.passed) && (
+                      <details className={styles.details}>
+                        <summary>
+                          {checks.filter((check) => check.passed).length} checks
+                          passed
+                        </summary>
+                        <ul>
+                          {checks
+                            .filter((check) => check.passed)
+                            .map((check) => (
+                              <li key={check.id}>
+                                {check.label}: {check.detail}
+                              </li>
+                            ))}
+                        </ul>
+                      </details>
                     )}
+
                     {allPassing && (
                       <div className={styles.successNote}>
-                        <button className={styles.secondaryButton} onClick={() => {
-                          setTab("policy");
-                          setRequestKey("read-sensitive");
-                          setPolicy(null);
-                        }}>Review permissions <ArrowRight size={14} /></button>
+                        <button
+                          className={styles.secondaryButton}
+                          onClick={() => {
+                            selectCheckpoint(2);
+                          }}
+                        >
+                          Review permissions <ArrowRight size={14} />
+                        </button>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className={styles.simpleEmpty}>
-                    Not checked
-                  </div>
+                  <div className={styles.simpleEmpty}>Not checked</div>
                 )}
               </>
             )}
@@ -593,10 +727,14 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                       Decision: {policy.decision.replaceAll("_", " ")}
                     </strong>
                     <p>{policy.explanation}</p>
-                    {requestKey === "read-sensitive" && sensitiveDenied && <button
-                      className={styles.secondaryButton}
-                      onClick={() => { setRequestKey("publish-project"); setPolicy(null); }}
-                    >Review publishing <ArrowRight size={14} /></button>}
+                    {requestKey === "read-sensitive" && sensitiveDenied && (
+                      <button
+                        className={styles.secondaryButton}
+                        onClick={() => selectCheckpoint(3)}
+                      >
+                        Review publishing <ArrowRight size={14} />
+                      </button>
+                    )}
                     <details className={styles.details}>
                       <summary>Policy details</summary>
                       <div>
