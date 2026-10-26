@@ -17,6 +17,7 @@ import {
   DEFAULT_BRIEF,
   REQUEST_FIXTURES,
   analyzeBrief,
+  applyEditedFiles,
   evaluateWorkspaceRequest,
   generateProject,
   inspectProject,
@@ -78,6 +79,10 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
   const guide = getLabGuide("first-agent");
   const [brief, setBrief] = useState(DEFAULT_BRIEF);
   const [project, setProject] = useState<WorkspaceProject | null>(null);
+  const [draftFiles, setDraftFiles] = useState<
+    { path: string; content: string }[]
+  >([]);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const [baseline, setBaseline] = useState<WorkspaceProject | null>(null);
   const [checks, setChecks] = useState<WorkspaceCheck[] | null>(null);
   const [selectedFile, setSelectedFile] = useState("");
@@ -95,7 +100,14 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
   const [mobilePreview, setMobilePreview] = useState(false);
   const [completed, setCompleted] = useState(false);
   const analysis = analyzeBrief(brief);
-  const currentFile = project?.files.find((file) => file.path === selectedFile);
+  const currentFile = draftFiles.find((file) => file.path === selectedFile);
+  const unsaved =
+    !!project &&
+    draftFiles.some(
+      (file) =>
+        project.files.find((saved) => saved.path === file.path)?.content !==
+        file.content,
+    );
   const oldFile = baseline?.files.find((file) => file.path === selectedFile);
   const allPassing = !!checks?.length && checks.every((check) => check.passed);
   const qualifies = allPassing && sensitiveDenied && publishApproved;
@@ -133,7 +145,13 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     onReset?.();
   }
   function selectCheckpoint(index: number) {
-    if (!guide || !Number.isInteger(index) || index < 0 || index >= guide.checkpoints.length) return;
+    if (
+      !guide ||
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index >= guide.checkpoints.length
+    )
+      return;
     setActiveCheckpoint(index);
     if (index === 0) setTab("preview");
     if (index === 1) setTab("tests");
@@ -145,17 +163,46 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
   }
   function run() {
     invalidateArtifactReview();
-    const next = generateProject(brief);
+    let next: WorkspaceProject;
+    try {
+      next = generateProject(brief);
+    } catch (error) {
+      setEditorError(
+        error instanceof Error ? error.message : "Could not create files.",
+      );
+      return;
+    }
+    setEditorError(null);
+    setDraftFiles(next.files.map(({ path, content }) => ({ path, content })));
     setProject(next);
     setBaseline((previous) => previous ?? next);
     setSelectedFile(next.files[0]?.path ?? "");
     setChecks(null);
     setTab("preview");
-    setActiveCheckpoint(previous => previous === 0 ? 0 : 1);
+    setActiveCheckpoint((previous) => (previous === 0 ? 0 : 1));
     record(`Generated ${next.files.length} fictional files from your brief.`);
   }
-  function test() {
+  function runPreview() {
     if (!project) return;
+    try {
+      const next = applyEditedFiles(project, draftFiles);
+      invalidateArtifactReview();
+      setProject(next);
+      setDraftFiles(next.files.map(({ path, content }) => ({ path, content })));
+      setEditorError(null);
+      setTab("preview");
+      setActiveCheckpoint(1);
+      record("Updated the preview from the edited files.");
+    } catch (error) {
+      setEditorError(
+        error instanceof Error
+          ? error.message
+          : "Could not update the preview.",
+      );
+    }
+  }
+  function test() {
+    if (!project || unsaved) return;
     const results = inspectProject(project);
     setChecks(results);
     setTab("tests");
@@ -164,9 +211,11 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     );
   }
   function fix() {
-    if (!project) return;
+    if (!project || unsaved) return;
     invalidateArtifactReview();
     const next = repairProject(project);
+    setDraftFiles(next.files.map(({ path, content }) => ({ path, content })));
+    setEditorError(null);
     setProject(next);
     setBrief(next.analysis.prompt);
     setChecks(null);
@@ -178,7 +227,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     );
   }
   function decide(decision: WorkspaceDecision) {
-    if (!project) return;
+    if (!project || unsaved) return;
     const result = evaluateWorkspaceRequest(requestKey, decision);
     setPolicy(result);
     if (
@@ -200,6 +249,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
   function approvePublish() {
     if (
       !project ||
+      unsaved ||
       !publishPending ||
       policy?.decision !== "require_approval" ||
       policy.request.action !== "publish"
@@ -215,6 +265,8 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     setReadingTab("instructions");
     setBrief(DEFAULT_BRIEF);
     setProject(null);
+    setDraftFiles([]);
+    setEditorError(null);
     setBaseline(null);
     setChecks(null);
     setSelectedFile("");
@@ -271,8 +323,20 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
           </div>
           {guide ? (
             <>
-              <select className={styles.checkpointSelect} aria-label="Current checkpoint" value={activeCheckpoint} onChange={event => selectCheckpoint(Number(event.target.value))}>
-                {guide.checkpoints.map((item, index) => <option key={item.id} value={index}>{index + 1} / {guide.checkpoints.length} · {item.title}{checkpointDone[index] ? " ✓" : ""}</option>)}
+              <select
+                className={styles.checkpointSelect}
+                aria-label="Current checkpoint"
+                value={activeCheckpoint}
+                onChange={(event) =>
+                  selectCheckpoint(Number(event.target.value))
+                }
+              >
+                {guide.checkpoints.map((item, index) => (
+                  <option key={item.id} value={index}>
+                    {index + 1} / {guide.checkpoints.length} · {item.title}
+                    {checkpointDone[index] ? " ✓" : ""}
+                  </option>
+                ))}
               </select>
               {checkpoint &&
                 (readingTab === "instructions" ? (
@@ -291,6 +355,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                         <button
                           className={styles.secondaryButton}
                           onClick={fix}
+                          disabled={unsaved}
                         >
                           <Wrench size={14} /> Fix missing requirements
                         </button>
@@ -303,15 +368,25 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                       >
                         Back
                       </button>
-                      {completed && activeCheckpoint === guide.checkpoints.length - 1 ? <Link className={styles.nextProject} href="/discover/accessible-event-planner">Next project <ArrowRight size={14} /></Link> : <button
-                        onClick={() => selectCheckpoint(activeCheckpoint + 1)}
-                        disabled={
-                          !checkpointDone[activeCheckpoint] ||
-                          activeCheckpoint === guide.checkpoints.length - 1
-                        }
-                      >
-                        Next
-                      </button>}
+                      {completed &&
+                      activeCheckpoint === guide.checkpoints.length - 1 ? (
+                        <Link
+                          className={styles.nextProject}
+                          href="/discover/accessible-event-planner"
+                        >
+                          Next project <ArrowRight size={14} />
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() => selectCheckpoint(activeCheckpoint + 1)}
+                          disabled={
+                            !checkpointDone[activeCheckpoint] ||
+                            activeCheckpoint === guide.checkpoints.length - 1
+                          }
+                        >
+                          Next
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -388,13 +463,17 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
               maxLength={2000}
             />
 
+            {editorError && (
+              <p role="alert" className={styles.editorError}>
+                {editorError}
+              </p>
+            )}
             <button
               className={styles.runButton}
               onClick={run}
               disabled={!brief.trim()}
             >
-              <Play size={15} fill="currentColor" />{" "}
-              {project ? "Run again" : "Run agent"}
+              <Play size={15} fill="currentColor" /> Generate from brief
               <span>↗</span>
             </button>
           </section>
@@ -431,100 +510,154 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
           </div>
           <div className={styles.resultPanel} aria-live="polite">
             {tab === "files" && (
-              <div className={styles.editorGrid}>
-                <aside className={styles.explorer} aria-label="File explorer">
-                  <p>
-                    EXPLORER <span>···</span>
-                  </p>
-                  <div className={styles.folder}>
-                    <ChevronRight size={13} />
-                    <Folder size={14} /> school-club
-                  </div>
+              <>
+                <div className={styles.editorActions}>
                   {project ? (
-                    project.files.map((file) => (
+                    <>
+                      <span>
+                        {unsaved ? "Unsaved changes" : "Preview is up to date"}
+                      </span>
                       <button
-                        key={file.path}
-                        aria-pressed={selectedFile === file.path}
-                        className={
-                          selectedFile === file.path ? styles.fileActive : ""
-                        }
-                        onClick={() => {
-                          setSelectedFile(file.path);
-                          setFileView("source");
-                        }}
+                        className={styles.secondaryButton}
+                        onClick={runPreview}
                       >
-                        <FileCode2 size={14} />
-                        {file.path.split("/").pop()}
+                        Run preview
                       </button>
-                    ))
+                    </>
                   ) : (
-                    <div className={styles.emptyFiles}>
-                      Run the agent to create files.
-                    </div>
-                  )}
-                </aside>
-                <div className={styles.editor}>
-                  <div className={styles.editorTabs}>
-                    <span>
-                      <FileCode2 size={14} />{" "}
-                      {currentFile?.path ?? "No file selected"}
-                    </span>
-                    <div>
-                      <button
-                        aria-pressed={fileView === "source"}
-                        className={
-                          fileView === "source" ? styles.activeMini : ""
-                        }
-                        onClick={() => setFileView("source")}
-                      >
-                        Source
-                      </button>
-                      <button
-                        aria-pressed={fileView === "changes"}
-                        className={
-                          fileView === "changes" ? styles.activeMini : ""
-                        }
-                        onClick={() => setFileView("changes")}
-                      >
-                        Changes
-                      </button>
-                    </div>
-                  </div>
-                  {currentFile ? (
-                    fileView === "source" ? (
-                      <pre className={styles.code}>{currentFile.content}</pre>
-                    ) : (
-                      <div className={styles.diff}>
-                        <span>
-                          CHANGES SINCE FIRST RUN · − REMOVED / + ADDED
-                        </span>
-                        <pre>
-                          {lineChanges(
-                            oldFile?.content ?? "",
-                            currentFile.content,
-                          ).map((row, index) => (
-                            <span key={index} className={styles[row.kind]}>
-                              {row.kind === "added"
-                                ? "+ "
-                                : row.kind === "removed"
-                                  ? "− "
-                                  : "  "}
-                              {row.text}
-                              {"\n"}
-                            </span>
-                          ))}
-                        </pre>
-                      </div>
-                    )
-                  ) : (
-                    <div className={styles.editorEmpty}>
-                      <FileCode2 size={24} />
-                      <strong>Your files will appear here</strong>
-                      <span>Run the agent to build a first version.</span>
-                    </div>
+                    <button
+                      className={styles.secondaryButton}
+                      onClick={() => {
+                        run();
+                        setTab("files");
+                      }}
+                    >
+                      Create starter files
+                    </button>
                   )}
                 </div>
-              </div>
+
+                <div className={styles.editorGrid}>
+                  <aside className={styles.explorer} aria-label="File explorer">
+                    <p>
+                      EXPLORER <span>···</span>
+                    </p>
+                    <div className={styles.folder}>
+                      <ChevronRight size={13} />
+                      <Folder size={14} /> school-club
+                    </div>
+                    {project ? (
+                      project.files.map((file) => (
+                        <button
+                          key={file.path}
+                          aria-pressed={selectedFile === file.path}
+                          className={
+                            selectedFile === file.path ? styles.fileActive : ""
+                          }
+                          onClick={() => {
+                            setSelectedFile(file.path);
+                            setFileView("source");
+                          }}
+                        >
+                          <FileCode2 size={14} />
+                          {file.path.split("/").pop()}
+                        </button>
+                      ))
+                    ) : (
+                      <div className={styles.emptyFiles}>
+                        Run the agent to create files.
+                      </div>
+                    )}
+                  </aside>
+                  <div className={styles.editor}>
+                    <div className={styles.editorTabs}>
+                      <span>
+                        <FileCode2 size={14} />{" "}
+                        {currentFile?.path ?? "No file selected"}
+                      </span>
+                      <div>
+                        <button
+                          aria-pressed={fileView === "source"}
+                          className={
+                            fileView === "source" ? styles.activeMini : ""
+                          }
+                          onClick={() => setFileView("source")}
+                        >
+                          Source
+                        </button>
+                        <button
+                          aria-pressed={fileView === "changes"}
+                          className={
+                            fileView === "changes" ? styles.activeMini : ""
+                          }
+                          onClick={() => setFileView("changes")}
+                        >
+                          Changes
+                        </button>
+                      </div>
+                    </div>
+                    {currentFile ? (
+                      fileView === "source" ? (
+                        <textarea
+                          className={styles.sourceEditor}
+                          aria-label={`Edit ${currentFile.path}`}
+                          value={currentFile.content}
+                          maxLength={40000}
+                          onChange={(event) => {
+                            const content = event.target.value;
+                            invalidateArtifactReview();
+                            setEditorError(null);
+                            setDraftFiles((files) =>
+                              files.map((file) =>
+                                file.path === currentFile.path
+                                  ? { ...file, content }
+                                  : file,
+                              ),
+                            );
+                          }}
+                          onKeyDown={(event) => {
+                            if (
+                              (event.ctrlKey || event.metaKey) &&
+                              event.key === "Enter"
+                            ) {
+                              event.preventDefault();
+                              runPreview();
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className={styles.diff}>
+                          <span>
+                            CHANGES SINCE FIRST RUN · − REMOVED / + ADDED
+                          </span>
+                          <pre>
+                            {lineChanges(
+                              oldFile?.content ?? "",
+                              currentFile.content,
+                            ).map((row, index) => (
+                              <span key={index} className={styles[row.kind]}>
+                                {row.kind === "added"
+                                  ? "+ "
+                                  : row.kind === "removed"
+                                    ? "− "
+                                    : "  "}
+                                {row.text}
+                                {"\n"}
+                              </span>
+                            ))}
+                          </pre>
+                        </div>
+                      )
+                    ) : (
+                      <div className={styles.editorEmpty}>
+                        <FileCode2 size={24} />
+                        <strong>Your files will appear here</strong>
+                        <span>Run the agent to build a first version.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
             {tab === "preview" && (
               <>
@@ -582,11 +715,12 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                   <button
                     className={styles.secondaryButton}
                     onClick={test}
-                    disabled={!project}
+                    disabled={!project || unsaved}
                   >
                     Run checks <ArrowRight size={14} />
                   </button>
                 </div>
+                {unsaved && <p>Run preview before checking edited files.</p>}
                 {checks ? (
                   <>
                     <div className={styles.checkList}>
@@ -628,7 +762,6 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                         </ul>
                       </details>
                     )}
-
                   </>
                 ) : (
                   <div className={styles.simpleEmpty}>Not checked</div>
@@ -670,17 +803,23 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                 </p>
                 <div className={styles.policyActions}>
                   {requestKey !== "publish-project" && (
-                    <button disabled={!project} onClick={() => decide("allow")}>
+                    <button
+                      disabled={!project || unsaved}
+                      onClick={() => decide("allow")}
+                    >
                       Allow
                     </button>
                   )}
                   <button
-                    disabled={!project}
+                    disabled={!project || unsaved}
                     onClick={() => decide("require_approval")}
                   >
                     Require approval
                   </button>
-                  <button disabled={!project} onClick={() => decide("deny")}>
+                  <button
+                    disabled={!project || unsaved}
+                    onClick={() => decide("deny")}
+                  >
                     Deny
                   </button>
                 </div>
