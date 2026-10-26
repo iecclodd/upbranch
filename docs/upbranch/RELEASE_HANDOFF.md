@@ -1,49 +1,53 @@
-# Upbranch release handoff
+# Upbranch release handoff — October 26, 2026
 
-## Current state
+## Current release
 
-- Source root: `C:\Users\azaan\Documents\Codex\2026-10-26\do-th\outputs\upbranch`
-- Tested and deployed commit: `70f881e`; repository: https://github.com/iecclodd/upbranch
-- Local development address: http://localhost:3000 when the development server is running.
-- Vercel project: `upbranch`, `prj_eEGr3q3N3kwMBApkom4iRmfT2LT5`, under `azaannoman03-8683s-projects`. Production deployment `dpl_DK4vHmS7mrdpb3G6qYLaAPHqMVTF` is READY and promoted. Public production address: https://upbranch.vercel.app. All 21 public routes returned 200 without authentication or redirects; an unknown mission returned 404. The protected deployment URLs are separate from the public production domain.
-- This documentation was added after the tested product commit. The user canceled the proposed Worktree app move; development remains in this Codex checkout. Preserve unrelated working-tree changes and inspect `git status` before edits.
+- Public home: https://upbranch.vercel.app
+- Course: https://upbranch.vercel.app/learn
+- Hands-on mission: https://upbranch.vercel.app/learn/first-agent
+- Repository: https://github.com/iecclodd/upbranch
+- Tested/deployed product commit: 51284813c573a0fb199014b2492adf85a9f37f60
+- Production deployment: dpl_FvMn8aEnJuzGJVY3Fg9cvZcmQet9, READY and promoted in the user's own Vercel project.
+- Editable checkout: C:\Users\azaan\Documents\Codex\2026-10-26\do-th\outputs\upbranch
+- Local development: http://127.0.0.1:3000
 
-## What exists
+Later documentation-only commits do not alter the deployed product. The user canceled moving operations into the installed Worktree app; work remains in this Codex checkout. The teammate omgbroops was invited with write access; acceptance is the teammate's action.
 
-Upbranch is a Next.js App Router learning experience with authored mission content and a deterministic local simulation. The original PolyShield dashboard, authentication, gateway and API surfaces are retained. Learner progress is local browser storage; the public mission is not a real autonomous agent or remote code executor. The ASCII canopy is original implementation inspired by the visual feel of daoho.dev; no code was copied from that site.
+## Product and ownership
 
-- `app/page.tsx`, `app/globals.css`, `components/upbranch/marketing/` and `components/upbranch/ui/`: landing page, visual treatment, canopy, shared shell.
-- `app/learn/`, `app/labs/`, `components/upbranch/labs/`, `lib/upbranch/content/` and `lib/upbranch/runtime/`: lessons, player, authored missions, transitions, scoring and fixed security demonstration.
-- `app/paths/`, `app/discover/`, `app/portfolio/`, `components/upbranch/discover/`, `lib/upbranch/pathways/` and `lib/upbranch/bounties/`: pathways, project ideas and ranking.
-- `app/radar/`, `components/upbranch/radar/`, `lib/upbranch/radar/`: curated research items and provenance.
-- `lib/upbranch/contracts.ts`, `catalog.ts`, `config.ts`, `progress.ts`: shared contracts, catalog and bounded local progress.
-- `app/dashboard/`, `app/api/mcp/`, `lib/gateway/`: original PolyShield product and security surfaces; preserve their behavior.
-- `tests/upbranch/`, `scripts/`, `docs/upbranch/`: regression checks, existing security checks, release and third-party notes.
+- `app/page.tsx`, `components/upbranch/marketing/`: problem-first homepage, inspection illustration, restrained original ASCII motion.
+- `components/upbranch/labs/agent-workspace*`, `first-agent-mission.tsx`, `lib/upbranch/workspace/runtime.ts`: editable deterministic brief, virtual source/diff, rendered preview, literal checks/repair, real policy evaluation on fictional requests, revision-bound mock approval and local completion.
+- `app/learn`, `components/upbranch/learn/`, `lib/upbranch/courses/`: six course lessons, three cited publisher YouTube videos, six original articles, eighteen quiz questions and validated browser-local format/best-score progress.
+- `lib/upbranch/content`, `runtime`, `progress.ts`: legacy authored branching engine, two other playable simulations and bounded mission progress.
+- `app/paths`, `app/discover`, `app/portfolio`, corresponding Upbranch modules: pathway previews, ten unpaid educational briefs, matching and local checklist/export.
+- `app/radar`, `lib/upbranch/radar`: five dated curated source-linked research items.
+- `app/studio`: read-only future-preview surface.
 
-## Verification reported for commit 70f881e
+Preserve unrelated edits and inspect `git status` first. Do not modify existing dashboard/auth/gateway/migrations as part of learner changes.
 
-The integrated Upbranch suite passed all seven test groups, including exhaustive replay of 438 completed mission choice paths. The existing security checks reported 132 passes. Typecheck, lint and the Vercel cloud build passed. `npm audit` reported zero vulnerabilities after updating Next.js and `eslint-config-next` to 15.5.28 and resolving compatible transitive dependencies. These are recorded results, not a claim that all security or accessibility concerns have been audited.
+## Verification
 
-Reproduce from the source root with the existing lockfile and Node 24:
+Typecheck, lint, fifteen Upbranch groups (including four new course groups and four workspace groups), 438 legacy authored paths, and all 132 security checks passed. Final cloud production build was READY; independent public HTTP smoke passed all thirty routes with no redirects, and unknown course/learn/labs routes returned 404. The actual production CSP permits only self and the YouTube privacy-enhanced embed domain for frames.
+
+Browser checks covered first-agent generation, failed checks, edited brief and actual source/rendered changes, targeted repair, protected Allow resolving to Deny, separate mock approval, completion revocation after changed evidence, and next-project handoff. Course checks covered publisher player loading, brief IBM model-video playback, original article/citations, quiz scoring 2/3 then retry 3/3, completion 1/6 (17%), refresh persistence and next-incomplete resume. All three cited players loaded locally; complete video playback in every region/browser is not claimed.
+
+Reproduce with Node 24 and the existing lockfile:
 
 ```powershell
 npm ci
-npm run test:upbranch
-npm run test:security
 npm run typecheck
 npm run lint
+npm run test:upbranch
+npm run test:security
 npm run build
-npm audit
-npm run dev
 ```
 
-`npm ci` modifies local dependencies; preserve any environment-specific setup. Use only safe test configuration. Do not print, copy, commit or share secrets, OIDC tokens, CLI authentication files, or `.env` files and their values.
+The inherited account pages need Supabase variables during build. The independent anonymous deployment uses explicitly fake build-only placeholders and has no functioning Supabase/Stripe/provider account integration. Never print/share/commit environment files, OIDC tokens, CLI auth files or credentials.
 
-## Audit priorities and known limits
+## Limits and next actions
 
-1. Public production access, route smoke checks, first-agent completion (18/18) and refresh persistence passed. Review additional learner branches and account-dependent surfaces separately.
-2. Review branch transitions, scores and feedback for educational correctness; confirm simulation language does not imply a live model or real tool access. Check the local progress reset and corrupt-storage behavior.
-3. Check external project and Radar links, source dates and review labels; the Radar is curated, not an asserted live feed. Confirm project ideas are not described as paid work.
-4. Inspect keyboard focus, reduced-motion behavior and responsive layouts. An exact 375px screen-reader audit has not been completed. The combined manual-pause/reduced-motion resume edge case was corrected before release.
-5. Review separation from the existing dashboard, gateway and `/api/mcp`, including that no public learner content exposes credentials or invokes privileged tools. Account-dependent integrations are not configured and have not been validated end to end.
-6. Review notices, AI-assistance disclosure and actual feature claims against the applicable submission requirements. A demo script is in `docs/upbranch/RELEASE_CHECKLIST.md`; no recording or portal submission is asserted here.
+See `KIT_COVERAGE.md` for the original R0/R1/R2 requirement comparison; the entire kit is not implemented. General IDE/execution, Worktree handoff, server sync, adaptive mastery, tutor and automatic ingestion remain future work. Video/article marks are self-reported; quizzes use authored keys; neither establishes certification or validated learning gains. Exact 375px and assistive-technology audits remain unperformed.
+
+Use the current production build for the user's own recording. The old screenshot walkthrough predates workspace/course changes. `EDIT_AND_RECORD.txt` beside the checkout gives edit paths and a current sequence. No contest submission or acceptance has occurred.
+
+Team routes and evidence are in `VALIDATION.md`, `WORKSPACE_UPGRADE.md` and `COURSE_SOURCES.md`. Requested Luna/Terra/Sol routing is documented; effective routing was not independently observable.
