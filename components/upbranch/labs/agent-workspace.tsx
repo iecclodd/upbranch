@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ArrowRight, Check, ChevronRight, CircleHelp, FileCode2, Folder, Play, RotateCcw, ShieldCheck, Sparkles, Wrench } from "lucide-react";
 import {
   DEFAULT_BRIEF, REQUEST_FIXTURES, analyzeBrief, evaluateWorkspaceRequest, generateProject, inspectProject, repairProject,
@@ -50,16 +51,23 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
   const currentFile = project?.files.find((file) => file.path === selectedFile);
   const oldFile = baseline?.files.find((file) => file.path === selectedFile);
   const allPassing = !!checks?.length && checks.every((check) => check.passed);
+  const qualifies = allPassing && sensitiveDenied && publishApproved;
 
   useEffect(() => {
-    if (!completed && allPassing && sensitiveDenied && publishApproved) {
-      setCompleted(true);
-      onComplete?.({ missionId: "first-agent", score: 100, completedAt: new Date().toISOString() });
-    }
-  }, [allPassing, completed, onComplete, publishApproved, sensitiveDenied]);
+    if (qualifies === completed) return;
+    setCompleted(qualifies);
+    if (qualifies) onComplete?.({ missionId: "first-agent", score: 100, completedAt: new Date().toISOString() });
+    else onReset?.();
+  }, [qualifies, completed, onComplete, onReset]);
 
-  function record(action: string) { setHistory((items) => [...items, action]); }
+  function record(action: string) { setHistory((items) => [...items.slice(-99), action]); }
+  function invalidateArtifactReview() {
+    setChecks(null); setPublishPending(false); setPublishApproved(false);
+    setSensitiveDenied(false); setSampleContext(false); setPolicy(null);
+    setCompleted(false); onReset?.();
+  }
   function run() {
+    invalidateArtifactReview();
     const next = generateProject(brief);
     setProject(next);
     setBaseline((previous) => previous ?? next);
@@ -77,6 +85,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
   }
   function fix() {
     if (!project) return;
+    invalidateArtifactReview();
     const next = repairProject(project);
     setProject(next);
     setBrief(next.analysis.prompt);
@@ -87,15 +96,16 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     record("Applied a targeted repair to the missing requirements. Run the checks again to verify it.");
   }
   function decide(decision: WorkspaceDecision) {
+    if (!project) return;
     const result = evaluateWorkspaceRequest(requestKey, decision);
     setPolicy(result);
     if (requestKey === "read-project" && decision === "allow" && result.decision === "allow") setSampleContext(true);
-    if (requestKey === "read-sensitive" && decision === "deny" && result.decision === "deny") setSensitiveDenied(true);
+    if (requestKey === "read-sensitive") setSensitiveDenied(decision === "deny" && result.decision === "deny");
     if (requestKey === "publish-project") { setPublishPending(result.decision === "require_approval"); setPublishApproved(false); }
     record(`Evaluated ${result.request.action} on ${result.request.path}: ${result.decision.replaceAll("_", " ")}.`);
   }
   function approvePublish() {
-    if (!publishPending) return;
+    if (!project || !publishPending || policy?.decision !== "require_approval" || policy.request.action !== "publish") return;
     setPublishApproved(true);
     record("Human approved the pending mock publish request; nothing was published.");
   }
@@ -146,13 +156,13 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
         <div className={styles.resultPanel} aria-live="polite">
           {tab === "preview" && <><div className={styles.panelHeader}><div><strong>Live preview</strong><p>A static, isolated preview of the fictional site. {publishApproved ? "Mock publish approved; nothing was published." : "Not published."}</p></div>{project && <button className={styles.secondaryButton} onClick={test}>Run checks <ArrowRight size={14} /></button>}</div>{project ? <><div className={styles.previewControls}><button onClick={() => setMobilePreview(false)} aria-pressed={!mobilePreview}>Desktop</button><button onClick={() => setMobilePreview(true)} aria-pressed={mobilePreview}>Mobile</button></div><div className={`${styles.browser} ${mobilePreview ? styles.mobileBrowser : ""}`}><div className={styles.browserBar}><span>● ● ●</span><div>school-club.local</div></div><iframe title="Fictional school club site preview" sandbox="" srcDoc={project.previewHtml} /></div></> : <div className={styles.previewEmpty}><div>✳</div><strong>Waiting for your first run</strong><p>Your project preview will show up here.</p></div>}</>}
           {tab === "tests" && <><div className={styles.panelHeader}><div><strong>Check your work</strong><p>Literal checks inspect generated content and CSS; they do not automate a browser.</p></div><button className={styles.secondaryButton} onClick={test} disabled={!project}>Run checks <ArrowRight size={14} /></button></div>{checks ? <><div className={styles.checkList}>{checks.map((check) => <div key={check.id} className={styles.checkRow}><span className={check.passed ? styles.pass : styles.fail}>{check.passed ? <Check size={14} /> : "!"}</span><div><strong>{check.label}</strong><p>{check.detail}</p></div><span className={styles.checkStatus}>{check.passed ? "PASS" : "NEEDS WORK"}</span></div>)}</div>{!allPassing && <div className={styles.fixCallout}><div><strong>Found something to improve?</strong><p>Edit your brief and run again, or ask for a targeted repair.</p></div><button onClick={fix}><Wrench size={14} /> Fix missing requirements</button></div>}{allPassing && <div className={styles.successNote}>All checks passed. Inspect the changes and review a permission request.</div>}</> : <div className={styles.simpleEmpty}>Run the checks to see what the project may have missed.</div>}</>}
-          {tab === "policy" && <><div className={styles.panelHeader}><div><strong>Tool permission inspector</strong><p>Explore how a policy handles a simulated tool request.</p></div><ShieldCheck size={21} /></div><label className={styles.label} htmlFor="policy-request">Select a request</label><select id="policy-request" value={requestKey} onChange={(event) => { setRequestKey(event.target.value as RequestKey); setPolicy(null); }}>{REQUEST_FIXTURES.map((fixture) => <option value={fixture.key} key={fixture.key}>{fixture.title}</option>)}</select><p className={styles.policyDescription}>{REQUEST_FIXTURES.find((fixture) => fixture.key === requestKey)?.description}</p><p className={styles.policyDescription}>For publishing, first require approval, then resolve the simulated request below. Protected context stays unavailable.</p><div className={styles.policyActions}><span>SET REQUEST POLICY</span>{requestKey !== "publish-project" && <button onClick={() => decide("allow")}>Allow</button>}<button onClick={() => decide("require_approval")}>Require approval</button><button onClick={() => decide("deny")}>Deny</button></div>{sampleContext && <div className={styles.sampleContext}><strong>Available project context</strong><p>{project ? `Read ${project.files[0]?.path}: ${project.files[0]?.content.slice(0, 140)}…` : "The fictional project file is available after generation."}</p></div>}{policy && <div className={styles.policyResult}><div><span>REQUEST</span><code>{policy.request.action} · {policy.request.path}</code></div><div><span>MATCHING RULE</span><strong>{policy.matchingRule}</strong></div><div><span>CONDITION</span><code>{policy.condition ?? "Matches the selected request"}</code></div><div><span>POLICY DECISION</span><strong>{policy.decision.replaceAll("_", " ")}</strong></div><p>{policy.explanation}</p><small>The protected-file rule matches paths starting with private/. An explicit deny cannot be overridden here.</small>{requestKey === "publish-project" && publishPending && <div className={styles.approval}><span>{publishApproved ? "MOCK APPROVED" : "AWAITING HUMAN APPROVAL"}</span><button onClick={approvePublish} disabled={publishApproved}>{publishApproved ? "Approved" : "Approve mock publish"}</button></div>}</div>}</>}
+          {tab === "policy" && <><div className={styles.panelHeader}><div><strong>Tool permission inspector</strong><p>Explore how a policy handles a simulated tool request.</p></div><ShieldCheck size={21} /></div><label className={styles.label} htmlFor="policy-request">Select a request</label><select id="policy-request" value={requestKey} onChange={(event) => { setRequestKey(event.target.value as RequestKey); setPolicy(null); }}>{REQUEST_FIXTURES.map((fixture) => <option value={fixture.key} key={fixture.key}>{fixture.title}</option>)}</select><p className={styles.policyDescription}>{REQUEST_FIXTURES.find((fixture) => fixture.key === requestKey)?.description}</p><p className={styles.policyDescription}>For publishing, first require approval, then resolve the simulated request below. Protected context stays unavailable.</p><div className={styles.policyActions}><span>SET REQUEST POLICY</span>{requestKey !== "publish-project" && <button disabled={!project} onClick={() => decide("allow")}>Allow</button>}<button disabled={!project} onClick={() => decide("require_approval")}>Require approval</button><button disabled={!project} onClick={() => decide("deny")}>Deny</button></div>{sampleContext && <div className={styles.sampleContext}><strong>Available project context</strong><p>{project ? `Read ${project.files[0]?.path}: ${project.files[0]?.content.slice(0, 140)}…` : "The fictional project file is available after generation."}</p></div>}{policy && <div className={styles.policyResult}><div><span>REQUEST</span><code>{policy.request.action} · {policy.request.path}</code></div><div><span>MATCHING RULE</span><strong>{policy.matchingRule}</strong></div><div><span>CONDITION</span><code>{policy.condition ?? "Matches the selected request"}</code></div><div><span>POLICY DECISION</span><strong>{policy.decision.replaceAll("_", " ")}</strong></div><p>{policy.explanation}</p><small>The protected-file rule matches paths starting with private/. An explicit deny cannot be overridden here.</small>{requestKey === "publish-project" && publishPending && <div className={styles.approval}><span>{publishApproved ? "MOCK APPROVED" : "AWAITING HUMAN APPROVAL"}</span><button onClick={approvePublish} disabled={publishApproved}>{publishApproved ? "Approved" : "Approve mock publish"}</button></div>}</div>}</>}
         </div>
       </section>
     </div>
     <div className={styles.bottom}>
       <div className={styles.history}><div className={styles.historyTitle}><span>03</span><strong>Activity log</strong><small>YOUR ACTIONS</small></div>{history.length ? <ol>{history.map((item, index) => <li key={`${index}-${item}`}><span>{String(index + 1).padStart(2, "0")}</span>{item}</li>)}</ol> : <p>Your actions will appear here as you work.</p>}</div>
-      <div className={styles.progress}><p className={styles.eyebrow}>YOUR PRACTICE PATH</p><div><span className={project ? styles.stepDone : ""}>1 <b>Generate</b></span><span className={checks ? styles.stepDone : ""}>2 <b>Check</b></span><span className={repaired || allPassing ? styles.stepDone : ""}>3 <b>Improve</b></span><span className={sensitiveDenied && publishApproved ? styles.stepDone : ""}>4 <b>Decide</b></span></div><p>{completed ? "Nice work. You checked your project and handled the protected and mock publish requests." : "Generate and check a project, deny the protected request, then require and grant approval for mock publishing."}</p>{completed && <a href="/discover/accessible-event-planner">Explore your next project <ArrowRight size={15} /></a>}</div>
+      <div className={styles.progress}><p className={styles.eyebrow}>YOUR PRACTICE PATH</p><div><span className={project ? styles.stepDone : ""}>1 <b>Generate</b></span><span className={checks ? styles.stepDone : ""}>2 <b>Check</b></span><span className={repaired || allPassing ? styles.stepDone : ""}>3 <b>Improve</b></span><span className={sensitiveDenied && publishApproved ? styles.stepDone : ""}>4 <b>Decide</b></span></div><p>{completed ? "Nice work. You checked your project and handled the protected and mock publish requests." : "Generate and check a project, deny the protected request, then require and grant approval for mock publishing."}</p>{completed && <><p>Put those skills to work: plan an accessible school event page using fictional details, a clear brief, and checks against its requirements.</p><Link href="/discover/accessible-event-planner">Build an accessible event page <ArrowRight size={15} /></Link></>}</div>
     </div>
   </section>;
 }

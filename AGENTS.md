@@ -163,3 +163,10 @@ Oververbosity:low
 - Reuse installed React/Tailwind/Lucide; preserve third-party notices. No browser IDE/runtime is shipped in R0.
 - Concurrency ceiling is seven, depth one by policy; no grandchildren. Route bounded implementation to Terra Medium, difficult runtime/QA to Terra High, and independent final review to Sol High. Effective routing must be reported as unverified unless runtime metadata proves it.
 - Done means one branching mission completes anonymously, three path previews, at least six project briefs, sourced Radar, unchanged gateway/auth boundaries, and executed release checks. A demo script does not prove a video or contest submission exists.
+
+## Hands-on first-agent workspace
+
+- Both `/learn/first-agent` and `/labs/first-agent` use `FirstAgentMission` → `AgentWorkspace`. Other missions retain the choice player; the legacy scenario data and exhaustive replay tests remain for regression coverage.
+- `lib/upbranch/workspace/runtime.ts` owns the bounded deterministic instruction interpreter, static virtual files, literal checks/repair, and fictional request fixtures. It calls the existing pure gateway policy evaluator. Never replace the policy result with a canned display value.
+- `components/upbranch/labs/agent-workspace*` owns the workbench; keep previews in an empty sandbox, escape user text, and preserve the no-network/no-live-execution boundary. Completion alone is stored through `first-agent-mission.tsx`; do not persist prompts or virtual file contents.
+- Generation/repair must invalidate checks, policy evidence, pending/granted publishing approval and completion. Completion must revoke when qualifying evidence changes. Browser verification must cover pre-generation approval guards, prompt edit → changed preview/diff → checks, protected deny, separate human mock approval, regeneration revocation, and the next-project link.

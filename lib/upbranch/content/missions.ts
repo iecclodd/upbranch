@@ -4,7 +4,7 @@ export const missions: Mission[] = [
   {
     "id": "first-agent",
     "title": "Your First AI Agent",
-    "summary": "Delegate a task, give relevant context, verify results and manage permissions.",
+    "summary": "Write your own brief, inspect virtual files and a rendered website, fix missing requirements, and supervise tool permissions.",
     "domain": "build-with-agents",
     "difficulty": "beginner",
     "estimatedMinutes": 6,

@@ -29,7 +29,7 @@ The production build needs `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_
 
 ## Try the product
 
-- `/learn/first-agent`: six core decisions, an alternate remediation branch, feedback, a scripted workspace, permission fixture and transfer scenario. Progress resumes in this browser; reset clears that mission's completion state.
+- `/learn/first-agent` (also `/labs/first-agent`): editable instructions, a deterministic brief interpreter, virtual files and a real source diff, isolated rendered website, mobile preview, literal checks, targeted repair, and actual PolyShield policy evaluation on fictional requests. Build changes invalidate approval. Only mission completion is saved; instructions and files stay in this tab.
 - `/learn`: three playable simulations and three clearly marked future lessons.
 - `/paths`: three pathway previews with browser-local completion markers.
 - `/discover`: searchable project ideas and detailed briefs; all are unpaid educational challenges.

@@ -7,7 +7,7 @@ const satoshi = localFont({ src: "./fonts/Satoshi-Variable.ttf", weight: "300 90
 
 export const metadata: Metadata = {
   title: "Upbranch — Learn AI. Build what's next.",
-  description: "Practice with AI agents, learn to verify results, and discover projects worth building.",
+  description: "Write an agent's brief, inspect its build, check what it missed, and supervise its permissions in a hands-on AI learning workspace.",
   icons: { icon: "/polyshield_logo_nobg.png" },
 };
 
