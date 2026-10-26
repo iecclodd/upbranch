@@ -4,13 +4,13 @@
 
 Built on PolyShield baseline `3f3a7a0b624dcabd594684b9d0cee5acbfa802bb`: public homepage, six-stage branching first-agent simulation, two additional playable simulations, three future lesson previews, three pathways, ten unpaid educational project briefs, local evidence checklist/export/reset, five source-backed curated Radar cards, and an honest read-only Studio preview.
 
-Changes are confined to public Upbranch routes/components/domain data/tests, root marketing/layout/style, package test script, and project agent guidance. `lib/gateway`, `lib/supabase`, `app/dashboard`, `app/api`, `app/auth`, middleware, migrations and the dependency lockfile have no diff from baseline. Global legacy CSS tokens remain. Local Satoshi is retained; Google serif/mono fonts use system fallbacks, which can slightly change those faces in legacy pages.
+Changes are confined to public Upbranch routes/components/domain data/tests, root marketing/layout/style, compatible dependency security patches, package test script, and project agent guidance. `lib/gateway`, `lib/supabase`, `app/dashboard`, `app/api`, `app/auth`, middleware and migrations have no diff from baseline. Global legacy CSS tokens remain. Local Satoshi is retained; Google serif/mono fonts use system fallbacks, which can slightly change those faces in legacy pages.
 
 ## Executed checks
 
 | Check | Result |
 | --- | --- |
-| `npm ci --no-fund --no-audit` | Pass; existing lockfile, no dependency additions |
+| `npm ci --no-fund --no-audit` | Initial install passed; final lockfile subsequently received compatible security patches, with no new direct runtime capability |
 | `npm run typecheck` | Pass; production build also checks TypeScript |
 | `npm run test:upbranch` | 7/7 pass; 438 complete published mission paths checked |
 | `npm run test:security` | Pass: policy 40, shield 35, SSRF 22, migration 35; 132 total |
@@ -19,6 +19,7 @@ Changes are confined to public Upbranch routes/components/domain data/tests, roo
 | `git diff --check` | Pass; Git may report Windows LF/CRLF conversion notices |
 | Scoped changed-code secret-pattern scan | Zero matches in four tested token/private-key patterns; not a comprehensive secret audit |
 | `.codex/config.toml` parsing | Pass with Python `tomllib` |
+| `npm audit --json` after compatible patches | Zero known registry advisories; no `--force` upgrades used |
 
 The inherited auth pages require a Supabase URL/key during prerender. The successful local build used an `.invalid` URL and an explicitly fake test-only key, supplied only to the build process; no production credentials were used. An initial build without these values failed at the inherited auth pages. The earlier uncached build also reported the inherited Supabase Edge `process.version` compatibility warning. These checks do not establish real account sign-in or production provider connectivity.
 
@@ -57,6 +58,8 @@ Ten agents contributed across independent scopes. All feature writers used isola
 Effective child routing was not exposed in authoritative runtime results and remains unverified. The review found the link-reset specificity issue and missing skip-link targets; both were corrected and independently rechecked. Keyed players prevent cross-mission state reuse; reset/back now consistently remove the current mission's completion flag. No new review blockers remained.
 
 The subsequent user-directed design pass added an original, contained ASCII canopy to the hero. TypeScript, lint and diff checks passed; browser checks observed the glyph field and confirmed Pause/Resume. Independent QA reviewed the bounded drawing, SSR-safe effects, reduced-motion handling and observer/timer cleanup. The small combined pause/reduced-motion resume edge case was corrected. Source and hosting were moved to the user's independent `iecclodd/upbranch` repository and own Vercel project; the prior Arya-host deployment is outside the current release target.
+
+The first cloud install exposed ten inherited dependency advisories. Independent review identified applicable App Router/Server Actions denial of service in Next 15.5.19 ([GHSA-p3m5-59mp-jv5r](https://github.com/advisories/GHSA-p3m5-59mp-jv5r)), along with conditional image and platform issues. Next and eslint-config-next were pinned to 15.5.28. Ordinary `npm audit fix`, without `--force`, patched compatible transitive versions, including sharp 0.35.5 and PostCSS 8.5.32. The resulting audit is zero, and TypeScript, lint, all 132 security checks and all seven Upbranch groups (438 paths) passed again. The final cloud build and hosting result are recorded separately.
 
 ## Remaining limits
 
