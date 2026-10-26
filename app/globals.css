@@ -141,3 +141,8 @@ body {
 .ub-radar .ub-button { flex: none; }
 @media (max-width: 800px) { .ub-projects { padding-bottom: 80px; }.ub-projects-heading, .ub-radar { align-items: start; flex-direction: column; }.ub-radar { margin-bottom: 70px; } }
 @media (max-width: 560px) { .ub-project-grid { grid-template-columns: 1fr; }.ub-project-card, .ub-project-card + .ub-project-card { min-height: auto; padding: 24px 35px 26px 0; border-left: 0; }.ub-project-card h3 { margin-top: 20px; }.ub-projects-heading h2, .ub-radar h2 { font-size: 40px; } }
+
+.ub-ascii-garden { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ub-motion-control { position: absolute; z-index: 3; right: 25px; bottom: 53px; border: 1px solid #8ea58a; background: #f6f5ef; color: #344638; padding: 7px 9px; font: 700 9px var(--font-satoshi), sans-serif; letter-spacing: .04em; cursor: pointer; }
+.ub-motion-control:hover { background: #dcebcf; }
+.ub-motion-control:focus-visible { outline: 3px solid #648c49; outline-offset: 3px; }
