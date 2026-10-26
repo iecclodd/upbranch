@@ -170,3 +170,10 @@ Oververbosity:low
 - `lib/upbranch/workspace/runtime.ts` owns the bounded deterministic instruction interpreter, static virtual files, literal checks/repair, and fictional request fixtures. It calls the existing pure gateway policy evaluator. Never replace the policy result with a canned display value.
 - `components/upbranch/labs/agent-workspace*` owns the workbench; keep previews in an empty sandbox, escape user text, and preserve the no-network/no-live-execution boundary. Completion alone is stored through `first-agent-mission.tsx`; do not persist prompts or virtual file contents.
 - Generation/repair must invalidate checks, policy evidence, pending/granted publishing approval and completion. Completion must revoke when qualifying evidence changes. Browser verification must cover pre-generation approval guards, prompt edit → changed preview/diff → checks, protected deny, separate human mock approval, regeneration revocation, and the next-project link.
+
+## Video/article/quiz course
+
+- `lib/upbranch/courses/catalog.ts` owns authored lesson articles, quiz keys and publisher video citations. Never guess video IDs, copy transcripts or claim third-party playback was tested from HTTP alone. `COURSE_SOURCES.md` records provenance.
+- `components/upbranch/learn/` owns course/lesson views; the lesson route is keyed by ID. Keep choice IDs stable when varying quiz option order. Keep self-reported video/article review distinct from measured watching and graded quiz results.
+- `lib/upbranch/courses/progress.ts` stores only bounded, versioned format marks and best quiz scores under `upbranch:course-progress:v1`. Validate known lessons and grading keys; report write failure to the UI. No learner answer text or account data is sent to a server.
+- Embedded videos are click-to-load from `www.youtube-nocookie.com`; preserve the narrow CSP frame-src allowlist and the direct YouTube fallback. Do not permit arbitrary iframe URLs or expand other CSP directives for convenience.

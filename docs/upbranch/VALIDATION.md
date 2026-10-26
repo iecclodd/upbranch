@@ -1,5 +1,7 @@
 # Upbranch R0 validation — October 26, 2026
 
+This records the initial release. The first-agent player has since been replaced with a hands-on workspace; see `WORKSPACE_UPGRADE.md`. The subsequent video/article/quiz course is documented in `COURSE_SOURCES.md` and `KIT_COVERAGE.md`. Current deployment evidence is in the sibling `outputs/DEPLOYMENT_STATUS.txt` deliverable.
+
 ## Scope and result
 
 Built on PolyShield baseline `3f3a7a0b624dcabd594684b9d0cee5acbfa802bb`: public homepage, six-stage branching first-agent simulation, two additional playable simulations, three future lesson previews, three pathways, ten unpaid educational project briefs, local evidence checklist/export/reset, five source-backed curated Radar cards, and an honest read-only Studio preview.

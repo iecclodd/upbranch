@@ -30,7 +30,8 @@ The production build needs `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_
 ## Try the product
 
 - `/learn/first-agent` (also `/labs/first-agent`): editable instructions, a deterministic brief interpreter, virtual files and a real source diff, isolated rendered website, mobile preview, literal checks, targeted repair, and actual PolyShield policy evaluation on fictional requests. Build changes invalidate approval. Only mission completion is saved; instructions and files stay in this tab.
-- `/learn`: three playable simulations and three clearly marked future lessons.
+- `/learn`: a six-lesson course across three units, with cited publisher YouTube videos, original articles, retryable quizzes and browser-local format progress. The practice library retains three playable simulations and three clearly marked future missions.
+- `/learn/course/[lessonId]`: video/article/quiz lesson view, course outline, explanations, best quiz score and next-lesson navigation. Video/article review is self-reported; watch time is not measured. Videos connect to YouTube only after Load video is selected.
 - `/paths`: three pathway previews with browser-local completion markers.
 - `/discover`: searchable project ideas and detailed briefs; all are unpaid educational challenges.
 - `/portfolio`: local evidence checklist, export and reset.
