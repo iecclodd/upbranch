@@ -26,7 +26,7 @@ export function RadarExplorer({ items }: { items: RadarItem[] }) {
   );
 
   return (
-    <main className="min-h-screen bg-[#f6f5ef] text-[#20251f]">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#f6f5ef] text-[#20251f]">
       <div className="mx-auto max-w-7xl px-5 pb-20 pt-14 sm:px-8 lg:px-12 lg:pt-20">
         <div className="max-w-3xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#506347]">Research, translated</p>

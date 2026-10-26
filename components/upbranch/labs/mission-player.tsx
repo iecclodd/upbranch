@@ -20,7 +20,9 @@ export function MissionPlayer({ mission, onComplete }: { mission: Mission; onCom
   function save(next: MissionRun) {
     setRun(next);
     const progress = readLocalProgress();
-    writeLocalProgress({ ...progress, missionRuns: { ...progress.missionRuns, [mission.id]: next }, completedMissionIds: next.status === "completed" && !progress.completedMissionIds.includes(mission.id) ? [...progress.completedMissionIds, mission.id] : progress.completedMissionIds, updatedAt: new Date().toISOString() });
+    const completedMissionIds = progress.completedMissionIds.filter((id) => id !== mission.id);
+    if (next.status === "completed") completedMissionIds.push(mission.id);
+    writeLocalProgress({ ...progress, missionRuns: { ...progress.missionRuns, [mission.id]: next }, completedMissionIds, updatedAt: new Date().toISOString() });
   }
   function answer(choiceId: string) {
     const outcome = chooseMissionAnswer(mission, run, choiceId);

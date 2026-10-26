@@ -11,7 +11,7 @@ const pillars = [
 ];
 
 export default function LearnPage() {
-  return <SiteShell><main className="bg-[#f6f5ef] text-[#20251f]">
+  return <SiteShell><main id="main-content" tabIndex={-1} className="bg-[#f6f5ef] text-[#20251f]">
     <section className="mx-auto max-w-7xl px-6 pb-16 pt-16 md:px-10 md:pb-24 md:pt-24">
       <div className="grid gap-8 border-b border-[#20251f]/20 pb-12 md:grid-cols-[1.4fr_1fr] md:items-end">
         <div><p className="mb-5 text-xs font-bold uppercase tracking-[.22em]">The learning library / 01</p><h1 className="max-w-3xl text-5xl font-semibold leading-[.98] tracking-[-.05em] md:text-7xl">Get curious.<br /><span className="text-[#547b38]">Get capable.</span></h1></div>
