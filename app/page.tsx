@@ -32,7 +32,7 @@ export default function Home() {
         <section className="ub-practice">
           <div className="ub-wrap ub-practice-grid">
             <div className="ub-practice-copy">
-              <h2>Look closer.<br /><em>Make the call.</em></h2>
+              <h2>Inspect a build.</h2>
               <p>Inspect a fictional school events page and decide what needs attention.</p>
               <Link className="ub-text-link" href="/learn/first-agent">Continue to the mission <ArrowRight size={17} aria-hidden="true" /></Link>
             </div>
@@ -41,7 +41,7 @@ export default function Home() {
         </section>
         <section className="ub-projects ub-wrap">
           <div className="ub-projects-heading">
-            <h2>Explore a <em>project.</em></h2>
+            <h2>Projects</h2>
             <Link className="ub-text-link" href="/discover">All projects <ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
           <div className="ub-project-grid">

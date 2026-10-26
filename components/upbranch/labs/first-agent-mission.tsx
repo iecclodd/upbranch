@@ -23,10 +23,7 @@ export function FirstAgentMission() {
   }
 
   return <>
-    <p className="mb-5 text-sm leading-6 text-[#596257]">
-      {completed ? "✓ Mission completed in this browser. You can experiment again below." : "Your task: deliver three club project cards, a mobile layout, and fictional sample data. Keep access within the brief."}
-      {" "}Only completion is remembered. Your instructions and virtual files stay in this tab.
-    </p>
+    {completed && <p className="mb-4 text-sm font-semibold text-[#446b36]" role="status">✓ Completed</p>}
     <AgentWorkspace onComplete={() => saveCompletion(true)} onReset={() => saveCompletion(false)} />
   </>;
 }

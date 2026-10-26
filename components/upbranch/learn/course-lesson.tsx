@@ -89,7 +89,6 @@ export function CourseLessonView({ lessonId }: { lessonId: string }) {
                 </div>
                 <div className={styles.videoDetails}>
                   <a href={lesson.video.sourceUrl} target="_blank" rel="noopener noreferrer">{lesson.video.title} · {lesson.video.channel} <ExternalLink size={13} /></a>
-                  <a href={lesson.video.url} target="_blank" rel="noopener noreferrer">Open on YouTube <ExternalLink size={13} /></a>
                 </div>
                 <button className={styles.markButton} type="button" onClick={() => mark("video")} disabled={!!state?.video}>{state?.video ? "Reviewed" : "Mark reviewed"}</button>
                 <details className={styles.disclosure}><summary>About video progress</summary><p>Mark this yourself after reviewing the video. Watch time is not tracked.</p></details>
@@ -106,7 +105,7 @@ export function CourseLessonView({ lessonId }: { lessonId: string }) {
             )}
             {format === "quiz" && (
               <section aria-label="Quiz">
-                <p className={styles.quizIntro}>Answer every question. All answers must be correct to pass; you can retry.</p>
+                <p className={styles.quizIntro}>{Object.keys(answers).length} / {lesson.quiz.length} answered</p>
                 <form onSubmit={submit}>
                   <div className={styles.questions}>
                     {lesson.quiz.map((question, qIndex) => (

@@ -228,9 +228,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
         </div>
       </header>
       <p className={styles.requirements}>
-        {completed
-          ? "Project complete."
-          : "To complete: pass checks, deny the protected request, and require and grant approval for mock publishing."}
+        Build a school club site with three cards, a mobile layout, and fictional data.
       </p>
       <div className={styles.main}>
         <div className={styles.left}>
@@ -459,8 +457,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                 ) : (
                   <div className={styles.previewEmpty}>
                     <div>✳</div>
-                    <strong>Waiting for your first run</strong>
-                    <p>Your project preview will show up here.</p>
+                    <strong>No build yet</strong>
                   </div>
                 )}
               </>
@@ -489,7 +486,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                 {checks ? (
                   <>
                     <div className={styles.checkList}>
-                      {checks.map((check) => (
+                      {checks.filter((check) => !check.passed).map((check) => (
                         <div key={check.id} className={styles.checkRow}>
                           <span
                             className={check.passed ? styles.pass : styles.fail}
@@ -506,15 +503,12 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                         </div>
                       ))}
                     </div>
+                    {checks.some((check) => check.passed) && <details className={styles.details}>
+                      <summary>{checks.filter((check) => check.passed).length} checks passed</summary>
+                      <ul>{checks.filter((check) => check.passed).map((check) => <li key={check.id}>{check.label}: {check.detail}</li>)}</ul>
+                    </details>}
                     {!allPassing && (
                       <div className={styles.fixCallout}>
-                        <div>
-                          <strong>Found something to improve?</strong>
-                          <p>
-                            Edit your brief and run again, or ask for a targeted
-                            repair.
-                          </p>
-                        </div>
                         <button onClick={fix}>
                           <Wrench size={14} /> Fix missing requirements
                         </button>
@@ -522,14 +516,17 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                     )}
                     {allPassing && (
                       <div className={styles.successNote}>
-                        All checks passed. Inspect the changes and review a
-                        permission request.
+                        <button className={styles.secondaryButton} onClick={() => {
+                          setTab("policy");
+                          setRequestKey("read-sensitive");
+                          setPolicy(null);
+                        }}>Review permissions <ArrowRight size={14} /></button>
                       </div>
                     )}
                   </>
                 ) : (
                   <div className={styles.simpleEmpty}>
-                    Run the checks to see what the project may have missed.
+                    Not checked
                   </div>
                 )}
               </>
@@ -599,6 +596,10 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                       Decision: {policy.decision.replaceAll("_", " ")}
                     </strong>
                     <p>{policy.explanation}</p>
+                    {requestKey === "read-sensitive" && sensitiveDenied && <button
+                      className={styles.secondaryButton}
+                      onClick={() => { setRequestKey("publish-project"); setPolicy(null); }}
+                    >Review publishing <ArrowRight size={14} /></button>}
                     <details className={styles.details}>
                       <summary>Policy details</summary>
                       <div>
