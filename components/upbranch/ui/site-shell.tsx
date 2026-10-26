@@ -19,7 +19,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       </header>
       {children}
       <footer className="ub-footer">
-        <div className="ub-footer-top"><div><Link className="ub-logo ub-footer-logo" href="/"><span className="ub-logo-mark" aria-hidden="true">✳</span> upbranch<span className="ub-logo-dot">.</span></Link><p>Learn AI. Build what&apos;s next.</p></div><div className="ub-footer-links"><div><span>EXPLORE</span><Link href="/learn">Learn</Link><Link href="/paths">Paths</Link><Link href="/discover">Discover</Link><Link href="/radar">Radar</Link></div><div><span>GO FURTHER</span><Link href="/labs">Labs</Link><Link href="/studio">Studio</Link><Link href="/dashboard">Developer security ↗</Link></div></div></div>
+        <div className="ub-footer-top"><div><Link className="ub-logo ub-footer-logo" href="/"><span className="ub-logo-mark" aria-hidden="true">✳</span> upbranch<span className="ub-logo-dot">.</span></Link><p>Learn AI. Build what&apos;s next.</p></div><div className="ub-footer-links"><div><span>EXPLORE</span><Link href="/learn">Learn</Link><Link href="/paths">Paths</Link><Link href="/discover">Discover</Link><Link href="/radar">Radar</Link></div><div><span>GO FURTHER</span><Link href="/labs">Labs</Link><Link href="/studio">Studio</Link><Link href="/portfolio">Your progress ↗</Link></div></div></div>
         <div className="ub-footer-bottom"><span>Made for the curious, the careful, and the builders.</span><span>LEARN / PRACTICE / BUILD</span></div>
       </footer>
     </div>
