@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 
 const navigation = [
   ["Learn", "/learn"],
-  ["Paths", "/paths"],
-  ["Discover", "/discover"],
+  ["Labs", "/labs"],
+  ["Projects", "/discover"],
   ["Radar", "/radar"],
 ];
 
@@ -31,7 +31,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <div className="ub-footer-top">
           <Link className="ub-logo ub-footer-logo" href="/" aria-label="Upbranch home"><span className="ub-logo-mark" aria-hidden="true">✳</span> upbranch<span className="ub-logo-dot">.</span></Link>
           <nav className="ub-footer-links" aria-label="More navigation">
-            <Link href="/labs">Labs</Link>
+            <Link href="/paths">Paths</Link>
             <Link href="/studio">Studio</Link>
             <Link href="/portfolio">Progress</Link>
           </nav>

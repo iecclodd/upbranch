@@ -177,3 +177,10 @@ Oververbosity:low
 - `components/upbranch/learn/` owns course/lesson views; the lesson route is keyed by ID. Keep choice IDs stable when varying quiz option order. Keep self-reported video/article review distinct from measured watching and graded quiz results.
 - `lib/upbranch/courses/progress.ts` stores only bounded, versioned format marks and best quiz scores under `upbranch:course-progress:v1`. Validate known lessons and grading keys; report write failure to the UI. No learner answer text or account data is sent to a server.
 - Embedded videos are click-to-load from `www.youtube-nocookie.com`; preserve the narrow CSP frame-src allowlist and the direct YouTube fallback. Do not permit arbitrary iframe URLs or expand other CSP directives for convenience.
+
+## Guided labs
+
+- `lib/upbranch/labs/guides.ts` owns original instructions, checkpoint IDs, contextual documentation and examples; `tests/upbranch/lab-guides.test.mjs` verifies their catalog alignment and executable examples. Keep documentation consistent with the deterministic runtime.
+- `LabActivity` is the shared shell for published `/labs/[missionId]` and `/learn/[missionId]` aliases. `LabDashboard` reports only actual local completion and validated authored decision runs.
+- Checkpoint navigation never grants evidence. Next follows current evidence; generation/repair still revoke review and completion. Keep a single clear next action and put optional hints, policy details and activity behind disclosures.
+- Preserve tab-local workspace drafts; do not imply cloud autosave or persist free-text briefs/files. Design precedents and ownership are recorded in `docs/upbranch/LAB_SYSTEM.md`.

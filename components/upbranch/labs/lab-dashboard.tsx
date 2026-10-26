@@ -27,7 +27,7 @@ export function LabDashboard({ missions }: { missions: Mission[] }) {
     <div className={styles.dashboard}>
       <h1>Labs</h1>
       <p>Practice with guided simulations. No live AI or tool execution.</p>
-      {ready && next && <Link className={styles.primary} href={`/labs/${next.id}`}>{completed.length ? "Resume labs" : "Start labs"} →</Link>}
+      {ready && next && <Link className={styles.primary} href={`/labs/${next.id}`}>{completed.length === missions.length ? "Review labs" : completed.length ? "Resume labs" : "Start labs"} →</Link>}
       <section className={styles.labList} aria-label="Labs">
         <div className={styles.listHeader}><h2>Assignments</h2><span>{ready ? `${completed.length} of ${missions.length} complete` : "Loading progress…"}</span></div>
         {missions.map((mission, index) => (

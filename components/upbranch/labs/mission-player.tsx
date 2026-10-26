@@ -49,7 +49,7 @@ export function MissionPlayer({ mission, onComplete }: { mission: Mission; onCom
   function reset() { save(startMission(mission)); setFeedback(null); }
 
   const step = mission.steps.find((item) => item.id === run.currentStepId);
-  const activeId = feedback ? run.answers.at(-1)?.stepId : run.currentStepId;
+  const activeId = feedback || run.status === "completed" ? run.answers.at(-1)?.stepId : run.currentStepId;
   const activeStep = mission.steps.find((item) => item.id === activeId);
   const guide = getLabGuide(mission.id);
   const checkpoint = guide?.checkpoints.find((item) => item.id === activeId);
@@ -86,7 +86,7 @@ export function MissionPlayer({ mission, onComplete }: { mission: Mission; onCom
         {!ready ? <p>Loading saved progress…</p> : feedback ? (
           <div aria-live="polite"><p className={styles.kicker}>Feedback</p><h2>Consider your choice</h2><p>{feedback}</p><button className={styles.primary} type="button" onClick={() => setFeedback(null)}>{run.status === "completed" ? "See debrief" : "Continue"}</button></div>
         ) : step ? (
-          <><p className={styles.kicker}>Decision exercise</p><h2>{step.title}</h2><p>{step.scenario}</p><div className={styles.choices} aria-label="Choose a response">{step.choices.map((choice) => <button type="button" key={choice.id} onClick={() => answer(choice.id)}>{choice.label}</button>)}</div>{step.technicalNote && <p className={styles.note}>{step.technicalNote}</p>}</>
+          <><p className={styles.kicker}>Decision exercise</p><h2>{step.title}</h2><p>{step.scenario}</p><div className={styles.choices} aria-label="Choose a response">{step.choices.map((choice) => <button type="button" key={choice.id} onClick={() => answer(choice.id)}>{choice.label}</button>)}</div>{step.technicalNote && step.technicalNote !== "This is a scripted, safe simulation; real agents can behave differently." && <p className={styles.note}>{step.technicalNote}</p>}</>
         ) : (
           <div aria-live="polite"><p className={styles.kicker}>Complete</p><h2>Lab debrief</h2><p><strong>{review.score} / {review.maxScore} points on your path</strong></p><p>Skills demonstrated: {review.demonstratedSkills.length ? review.demonstratedSkills.join(", ").replaceAll("-", " ") : "Keep practicing and try another approach."}</p><p className={styles.note}>Scores reflect choices in this simulation, not a certification or a measure of real-world competence.</p>{next ? <Link className={styles.primary} href={`/labs/${next.id}`}>Next lab →</Link> : <Link className={styles.primary} href="/labs">All labs →</Link>}</div>
         )}

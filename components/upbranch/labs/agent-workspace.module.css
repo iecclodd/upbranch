@@ -589,6 +589,19 @@
   border-top: 1px solid var(--line);
   padding-top: 10px;
 }
+.checkpointSelect {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 18px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #edf5e6;
+  color: var(--ink);
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
 .guideContent h3 {
   margin: 10px 0 4px;
   font-size: 15px;
@@ -622,6 +635,17 @@
   padding: 8px 12px;
   background: #f8faf6;
   color: #385b2d;
+  font-weight: 700;
+}
+.nextProject {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #293125;
+  color: white;
+  text-decoration: none;
   font-weight: 700;
 }
 .workbench > .briefCard {

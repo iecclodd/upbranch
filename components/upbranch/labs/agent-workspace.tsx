@@ -133,6 +133,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     onReset?.();
   }
   function selectCheckpoint(index: number) {
+    if (!guide || !Number.isInteger(index) || index < 0 || index >= guide.checkpoints.length) return;
     setActiveCheckpoint(index);
     if (index === 0) setTab("preview");
     if (index === 1) setTab("tests");
@@ -150,7 +151,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
     setSelectedFile(next.files[0]?.path ?? "");
     setChecks(null);
     setTab("preview");
-    setActiveCheckpoint(0);
+    setActiveCheckpoint(previous => previous === 0 ? 0 : 1);
     record(`Generated ${next.files.length} fictional files from your brief.`);
   }
   function test() {
@@ -270,25 +271,9 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
           </div>
           {guide ? (
             <>
-              <h2>{guide.title}</h2>
-              <p>{guide.description}</p>
-              <nav className={styles.checkpoints} aria-label="Checkpoints">
-                {guide.checkpoints.map((item, index) => (
-                  <button
-                    key={item.id}
-                    aria-current={
-                      activeCheckpoint === index ? "step" : undefined
-                    }
-                    onClick={() => selectCheckpoint(index)}
-                  >
-                    <span>{index + 1}</span>
-                    <span>{item.title}</span>
-                    {checkpointDone[index] && (
-                      <Check size={14} aria-label="Complete" />
-                    )}
-                  </button>
-                ))}
-              </nav>
+              <select className={styles.checkpointSelect} aria-label="Current checkpoint" value={activeCheckpoint} onChange={event => selectCheckpoint(Number(event.target.value))}>
+                {guide.checkpoints.map((item, index) => <option key={item.id} value={index}>{index + 1} / {guide.checkpoints.length} · {item.title}{checkpointDone[index] ? " ✓" : ""}</option>)}
+              </select>
               {checkpoint &&
                 (readingTab === "instructions" ? (
                   <div className={styles.guideContent}>
@@ -318,7 +303,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                       >
                         Back
                       </button>
-                      <button
+                      {completed && activeCheckpoint === guide.checkpoints.length - 1 ? <Link className={styles.nextProject} href="/discover/accessible-event-planner">Next project <ArrowRight size={14} /></Link> : <button
                         onClick={() => selectCheckpoint(activeCheckpoint + 1)}
                         disabled={
                           !checkpointDone[activeCheckpoint] ||
@@ -326,7 +311,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                         }
                       >
                         Next
-                      </button>
+                      </button>}
                     </div>
                   </div>
                 ) : (
@@ -644,18 +629,6 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                       </details>
                     )}
 
-                    {allPassing && (
-                      <div className={styles.successNote}>
-                        <button
-                          className={styles.secondaryButton}
-                          onClick={() => {
-                            selectCheckpoint(2);
-                          }}
-                        >
-                          Review permissions <ArrowRight size={14} />
-                        </button>
-                      </div>
-                    )}
                   </>
                 ) : (
                   <div className={styles.simpleEmpty}>Not checked</div>
@@ -727,14 +700,6 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                       Decision: {policy.decision.replaceAll("_", " ")}
                     </strong>
                     <p>{policy.explanation}</p>
-                    {requestKey === "read-sensitive" && sensitiveDenied && (
-                      <button
-                        className={styles.secondaryButton}
-                        onClick={() => selectCheckpoint(3)}
-                      >
-                        Review publishing <ArrowRight size={14} />
-                      </button>
-                    )}
                     <details className={styles.details}>
                       <summary>Policy details</summary>
                       <div>
@@ -783,11 +748,6 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
         </section>
       </div>
       <div className={styles.bottom}>
-        {completed && (
-          <Link href="/discover/accessible-event-planner">
-            Build an accessible event page <ArrowRight size={15} />
-          </Link>
-        )}
         <details className={styles.details}>
           <summary>Activity</summary>
           {history.length ? (
