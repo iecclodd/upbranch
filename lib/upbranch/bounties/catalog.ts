@@ -95,9 +95,9 @@ export const bounties: Bounty[] = [
   {
     "id": "open-source-first-pr",
     "title": "Your First Reviewed Open-Source Contribution",
-    "problem": "New developers lack a repeatable way to inspect and verify small changes.",
-    "whyItMatters": "Build practical understanding through verifiable artifacts and a clearly scoped real-world problem.",
-    "aiOpportunity": "Use AI for initial hypotheses or explanations, then verify claims against source data and a simple baseline.",
+    "problem": "New contributors need a repeatable way to verify a small documentation improvement.",
+    "whyItMatters": "A reviewed example helps newcomers practice reading project guidance and making reproducible changes.",
+    "aiOpportunity": "AI may suggest wording; inspect each change yourself. Never post or submit automatically.",
     "difficulty": "intermediate",
     "domains": [
       "software",
@@ -115,22 +115,17 @@ export const bounties: Bounty[] = [
       }
     ],
     "mvpDeliverables": [
-      "Working prototype or structured evidence document",
-      "Documented source references and assumptions"
+      "Choose a public repository; read its license, contribution guidelines and issue context. Draft a focused local documentation patch and record sources for claims. Run relevant checks if available."
     ],
     "evaluationCriteria": [
-      "Clear baseline comparison",
-      "Reproducible checks against known examples",
-      "Discussion of limitations and error cases"
+      "Confirm wording matches project behavior, show a focused diff and record checks. Do not claim acceptance without evidence."
     ],
     "stretchGoals": [
-      "Test with a consenting user and improve accessibility"
+      "Voluntarily submit the change and respond to maintainer feedback if appropriate."
     ],
     "evidenceChecklist": [
-      "GitHub repository or dated notebook",
-      "Screenshots/video of actual functioning features",
-      "Evaluation results and limitations",
-      "Short reflection on what AI did versus student work"
+      "Repository license, guidelines, patch or actual contribution link and check results.",
+      "How AI was used, human verification, reflection and limitations."
     ],
     "estimatedScope": "multiweek",
     "isPaidOpportunity": false
@@ -186,9 +181,9 @@ export const bounties: Bounty[] = [
   {
     "id": "air-quality-explainer",
     "title": "Air Quality Data Explainer",
-    "problem": "Public environmental data can be difficult to interpret.",
-    "whyItMatters": "Build practical understanding through verifiable artifacts and a clearly scoped real-world problem.",
-    "aiOpportunity": "Use AI for initial hypotheses or explanations, then verify claims against source data and a simple baseline.",
+    "problem": "Residents and students need context to interpret air-quality measurements.",
+    "whyItMatters": "A source-linked explainer can show what observations do and do not mean without giving health advice.",
+    "aiOpportunity": "AI may draft explanations, but a human must verify claims against the source. A non-AI approach is also valid.",
     "difficulty": "intermediate",
     "domains": [
       "environment",
@@ -206,22 +201,17 @@ export const bounties: Bounty[] = [
       }
     ],
     "mvpDeliverables": [
-      "Working prototype or structured evidence document",
-      "Documented source references and assumptions"
+      "Choose one OpenAQ series; record location, pollutant, dates, units and source. Show a table or chart with missing values marked. Check OpenAQ and original provider terms before reuse."
     ],
     "evaluationCriteria": [
-      "Clear baseline comparison",
-      "Reproducible checks against known examples",
-      "Discussion of limitations and error cases"
+      "Compare three values, units and timestamps with the source; never replace missing values with zero or claim individual health risks."
     ],
     "stretchGoals": [
-      "Test with a consenting user and improve accessibility"
+      "Compare compatible time periods after checking units and coverage."
     ],
     "evidenceChecklist": [
-      "GitHub repository or dated notebook",
-      "Screenshots/video of actual functioning features",
-      "Evaluation results and limitations",
-      "Short reflection on what AI did versus student work"
+      "Source links, provider terms, retrieval date, source-value checks and limitations.",
+      "How AI was used, human verification, reflection and limitations."
     ],
     "estimatedScope": "multiweek",
     "isPaidOpportunity": false
@@ -272,9 +262,9 @@ export const bounties: Bounty[] = [
   {
     "id": "paper-research-explorer",
     "title": "Paper Research Explorer",
-    "problem": "Research papers are hard to compare without losing context.",
-    "whyItMatters": "A small, transparent project can help learners and community members understand the problem.",
-    "aiOpportunity": "AI may help draft explanations, but a human should check each claim. A non-AI solution is also valid.",
+    "problem": "Students may mistake incomplete paper metadata for evidence about findings or peer review.",
+    "whyItMatters": "A source-linked reading list helps new researchers inspect original works.",
+    "aiOpportunity": "AI may draft explanations, but a human must verify claims against the source. A non-AI approach is also valid.",
     "difficulty": "beginner",
     "domains": [
       "research",
@@ -292,21 +282,17 @@ export const bounties: Bounty[] = [
       }
     ],
     "mvpDeliverables": [
-      "Compare paper metadata and link to original sources; distinguish preprints from peer-reviewed work.",
-      "Create a small prototype or structured evidence document with source references."
+      "Search a narrow topic in OpenAlex; show title, authors, year and DOI or original link when available. Mark missing fields and compare three records in your own notes. Do not copy full papers or proprietary corpora."
     ],
     "evaluationCriteria": [
-      "Check representative examples against their sources.",
-      "Document accessibility, limitations and errors."
+      "Compare three records with original sources; verify publication status explicitly and never invent missing metadata."
     ],
     "stretchGoals": [
-      "Ask a consenting person to review the prototype."
+      "Add a local reading checklist; document API budget and terms."
     ],
     "evidenceChecklist": [
-      "Problem statement and sources",
-      "Actual artifact or dated notebook",
-      "Human checks and test results",
-      "How AI was used, reflection and limitations"
+      "Query, date, source links, three metadata checks and unresolved uncertainties.",
+      "How AI was used, human verification, reflection and limitations."
     ],
     "estimatedScope": "weekend",
     "isPaidOpportunity": false
@@ -314,9 +300,9 @@ export const bounties: Bounty[] = [
   {
     "id": "accessible-event-planner",
     "title": "Accessible Event Planner",
-    "problem": "Event details can be difficult to navigate for people with different access needs.",
-    "whyItMatters": "A small, transparent project can help learners and community members understand the problem.",
-    "aiOpportunity": "AI may help draft explanations, but a human should check each claim. A non-AI solution is also valid.",
+    "problem": "Event information can be difficult to use with a keyboard, screen reader or zoomed display.",
+    "whyItMatters": "A fictional planner lets learners practice inclusive design for people with varied access needs.",
+    "aiOpportunity": "AI may draft explanations, but a human must verify claims against the source. A non-AI approach is also valid.",
     "difficulty": "beginner",
     "domains": [
       "accessibility",
@@ -334,21 +320,17 @@ export const bounties: Bounty[] = [
       }
     ],
     "mvpDeliverables": [
-      "Use entirely fictional events; provide keyboard navigation and clear labels.",
-      "Create a small prototype or structured evidence document with source references."
+      "Create a list and detail view with entirely fictional events and accommodations. Add visible focus, labels and keyboard navigation. Collect no real attendee or accessibility information."
     ],
     "evaluationCriteria": [
-      "Check representative examples against their sources.",
-      "Document accessibility, limitations and errors."
+      "Test every control with a keyboard, check labels and zoom, and document barriers; do not claim compliance from these checks alone."
     ],
     "stretchGoals": [
-      "Ask a consenting person to review the prototype."
+      "Invite a consenting person to review the mockup without collecting sensitive information."
     ],
     "evidenceChecklist": [
-      "Problem statement and sources",
-      "Actual artifact or dated notebook",
-      "Human checks and test results",
-      "How AI was used, reflection and limitations"
+      "Synthetic examples, keyboard and zoom notes, prototype screenshots and remaining barriers.",
+      "How AI was used, human verification, reflection and limitations."
     ],
     "estimatedScope": "weekend",
     "isPaidOpportunity": false
@@ -356,9 +338,9 @@ export const bounties: Bounty[] = [
   {
     "id": "energy-dashboard",
     "title": "Energy Data Dashboard",
-    "problem": "Public energy data can be difficult to interpret.",
-    "whyItMatters": "A small, transparent project can help learners and community members understand the problem.",
-    "aiOpportunity": "AI may help draft explanations, but a human should check each claim. A non-AI solution is also valid.",
+    "problem": "Energy time-series data are difficult to compare without units, dates and definitions.",
+    "whyItMatters": "A small dashboard helps learners explore a defined public energy series and its context.",
+    "aiOpportunity": "AI may draft explanations, but a human must verify claims against the source. A non-AI approach is also valid.",
     "difficulty": "beginner",
     "domains": [
       "energy",
@@ -376,21 +358,17 @@ export const bounties: Bounty[] = [
       }
     ],
     "mvpDeliverables": [
-      "Choose a public dataset after checking its terms; label units, dates and uncertainty.",
-      "Create a small prototype or structured evidence document with source references."
+      "Select an EIA public series, verify reuse terms and record source, retrieval date, units, geography and frequency. Show a labeled chart or table with missing values."
     ],
     "evaluationCriteria": [
-      "Check representative examples against their sources.",
-      "Document accessibility, limitations and errors."
+      "Compare three values and units to the source; distinguish missing values and avoid mixing incompatible frequencies or making causal claims."
     ],
     "stretchGoals": [
-      "Ask a consenting person to review the prototype."
+      "Compare a second compatible series and explain differences in definitions and coverage."
     ],
     "evidenceChecklist": [
-      "Problem statement and sources",
-      "Actual artifact or dated notebook",
-      "Human checks and test results",
-      "How AI was used, reflection and limitations"
+      "Dataset link, checked terms, retrieval date, source-value checks and limitations.",
+      "How AI was used, human verification, reflection and limitations."
     ],
     "estimatedScope": "weekend",
     "isPaidOpportunity": false
@@ -398,9 +376,9 @@ export const bounties: Bounty[] = [
   {
     "id": "bilingual-study-workflow",
     "title": "Bilingual Study Workflow",
-    "problem": "Translations and summaries can introduce subtle errors.",
-    "whyItMatters": "A small, transparent project can help learners and community members understand the problem.",
-    "aiOpportunity": "AI may help draft explanations, but a human should check each claim. A non-AI solution is also valid.",
+    "problem": "A translated study note can change meaning, omit context or introduce an incorrect term.",
+    "whyItMatters": "A comparison workflow helps language learners check translations rather than trust fluent answers.",
+    "aiOpportunity": "AI may suggest translations; a human must verify meaning and terminology. A manual comparison also works.",
     "difficulty": "beginner",
     "domains": [
       "education",
@@ -418,21 +396,17 @@ export const bounties: Bounty[] = [
       }
     ],
     "mvpDeliverables": [
-      "Use synthetic examples and a human verification checklist; never collect real grades or school IDs.",
-      "Create a small prototype or structured evidence document with source references."
+      "Create a fictional passage and two translations. Check meaning, terminology, omissions and uncertainty against a trusted reference or knowledgeable reviewer. Use no real grades, school IDs or personal information."
     ],
     "evaluationCriteria": [
-      "Check representative examples against their sources.",
-      "Document accessibility, limitations and errors."
+      "Identify a deliberately introduced mistranslation; distinguish verified from uncertain phrases and confirm all examples are synthetic."
     ],
     "stretchGoals": [
-      "Ask a consenting person to review the prototype."
+      "Compare another synthetic passage and document difficult verification cases."
     ],
     "evidenceChecklist": [
-      "Problem statement and sources",
-      "Actual artifact or dated notebook",
-      "Human checks and test results",
-      "How AI was used, reflection and limitations"
+      "Synthetic examples, references, human checklist, corrections and uncertainties.",
+      "How AI was used, human verification, reflection and limitations."
     ],
     "estimatedScope": "weekend",
     "isPaidOpportunity": false
