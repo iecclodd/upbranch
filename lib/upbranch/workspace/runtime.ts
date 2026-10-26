@@ -85,18 +85,61 @@ export function generateProject(prompt: string): WorkspaceProject {
   return renderProject(analyzeBrief(prompt));
 }
 
+// Preview uses an allowlist as well as CSP and the caller's empty iframe sandbox.
+function staticPreview(html: string): string {
+  const allowed = new Set(["main", "header", "footer", "nav", "section", "article", "div", "span", "p", "h1", "h2", "h3", "h4", "ul", "ol", "li", "strong", "em", "b", "i", "br", "hr", "a", "style"]);
+  const tokens = html.match(/<!--[\s\S]*?-->|<(?:[^>"']|"[^"]*"|'[^']*')*>|[^<]+|</g) ?? [];
+  let output = "";
+  let blocked = "";
+  for (const token of tokens) {
+    if (token.startsWith("<!--")) continue;
+    const tag = token.match(/^<\s*(\/?)\s*([a-zA-Z][\w-]*)\b([\s\S]*?)>$/);
+    if (!tag) { if (!blocked) output += token.replace(/</g, "&lt;"); continue; }
+    const closing = !!tag[1];
+    const name = tag[2].toLowerCase();
+    if (blocked) { if (closing && name === blocked) blocked = ""; continue; }
+    if (["script", "iframe", "object", "embed", "svg", "math", "template", "noscript"].includes(name)) { if (!closing && !/\/\s*>$/.test(token)) blocked = name; continue; }
+    if (!allowed.has(name)) continue;
+    if (closing) { output += `</${name}>`; continue; }
+    const attrs: string[] = [];
+    for (const match of tag[3].matchAll(/\b(class|id)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+      attrs.push(`${match[1].toLowerCase()}="${escapeHtml(match[2] ?? match[3] ?? match[4] ?? "")}"`);
+    }
+    output += `<${name}${attrs.length ? " " + attrs.join(" ") : ""}>`;
+  }
+  return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"></head><body>${output}</body></html>`;
+}
+
+export function applyEditedFiles(project: WorkspaceProject, files: { path: string; content: string }[]): WorkspaceProject {
+  const seen = new Set<string>();
+  for (const file of files) {
+    if (!file || !["index.html", "brief.txt"].includes(file.path) || seen.has(file.path) || typeof file.content !== "string" || new TextEncoder().encode(file.content).length > 40 * 1024) throw new Error("Invalid or oversized workspace file");
+    seen.add(file.path);
+  }
+  if (!seen.has("index.html")) throw new Error("index.html is required");
+  const html = files.find((file) => file.path === "index.html")!.content;
+  const brief = files.find((file) => file.path === "brief.txt")?.content ?? project.files.find((file) => file.path === "brief.txt")?.content ?? "";
+  return { analysis: analyzeBrief(brief), files: [{ path: "index.html", content: html }, { path: "brief.txt", content: brief }], previewHtml: staticPreview(html) };
+}
+
 export function inspectProject(project: WorkspaceProject): WorkspaceCheck[] {
-  const analysis = project.analysis;
-  const cardCount = (project.previewHtml.match(/<article class="card">/g) ?? []).length;
-  const styles = project.previewHtml.match(/<style>([\s\S]*?)<\/style>/)?.[1] ?? "";
-  const mobile = styles.includes("@media(max-width:600px){.cards{grid-template-columns:1fr}");
-  const data = ["Seed swap", "Garden workshop", "Community harvest"].every((label) => project.previewHtml.includes(`<article class="card"><h3>${label}</h3>`));
+  const html = project.files.find((file) => file.path === "index.html")?.content ?? "";
+  const clean = html.replace(/<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ").replace(/<!--([\s\S]*?)-->/g, " ");
+  const visible = clean.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").toLowerCase();
+  const heading = clean.match(/<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/i)?.[1]?.replace(/<[^>]*>/g, "").trim();
+  const audience = project.analysis.audience.trim();
+  const cards = [...clean.matchAll(/<([a-z][\w-]*)\b(?=[^>]*\bclass\s*=\s*(?:"[^"]*\bcard\b[^"]*"|'[^']*\bcard\b[^']*'|card(?:\s|>)))[^>]*>([\s\S]*?)<\/\1\s*>/gi)];
+  const styles = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi)].map((match) => match[1]).join(" ");
+  const mobile = /@media\s*\([^)]*(?:max-width|width)[^)]*\)/i.test(styles) && /(?:grid-template-columns\s*:\s*(?:1fr|repeat\(\s*1\s*,)|flex-direction\s*:\s*column)/i.test(styles);
+  const cardText = cards.map((card) => card[2].replace(/<[^>]*>/g, " ")).join(" ");
+  const data = cards.length === 3 && (/(fictional|sample|example)/i.test(cardText) || ["Seed swap", "Garden workshop", "Community harvest"].every((label) => cardText.includes(label)));
+  const hasAudience = !!audience && visible.includes(escapeHtml(audience).toLowerCase());
   return [
-    { id: "title", label: "A named project", passed: !!analysis.title, detail: analysis.title ? "The brief names the project." : "Add a Title: line." },
-    { id: "audience", label: "An intended audience", passed: !!analysis.audience, detail: analysis.audience ? "The page addresses its audience." : "Add an Audience: line." },
-    { id: "cards", label: "Three cards", passed: cardCount === 3, detail: cardCount === 3 ? "The page contains three cards." : "Ask for three cards." },
-    { id: "mobile", label: "Mobile layout", passed: mobile, detail: mobile ? "Cards stack on narrow screens." : "Ask for a mobile layout." },
-    { id: "data", label: "Sample data", passed: data, detail: data ? "Three fictional activities appear in the cards." : "Ask for three cards with sample data." },
+    { id: "title", label: "A named project", passed: !!heading, detail: heading ? "The page has a heading." : "Add a project heading." },
+    { id: "audience", label: "An intended audience", passed: hasAudience, detail: hasAudience ? "The page addresses its audience." : "Include the brief’s audience on the page." },
+    { id: "cards", label: "Three cards", passed: cards.length === 3, detail: cards.length === 3 ? "The page contains three cards." : "Add three cards." },
+    { id: "mobile", label: "Mobile layout", passed: mobile, detail: mobile ? "A narrow-screen layout is present." : "Add a mobile layout." },
+    { id: "data", label: "Sample data", passed: data, detail: data ? "Fictional activities appear in the cards." : "Add fictional sample data to the cards." },
   ];
 }
 

@@ -47,3 +47,26 @@ test("actual policy evaluator enforces learner choice and explicit deny", () => 
   assert.equal(evaluateWorkspaceRequest("publish-project").condition, null);
   assert.match(protectedFile.explanation, /precedence/);
 });
+
+test("edited files drive checks and preview, with bounded paths", async () => {
+  const { applyEditedFiles } = await import("../../lib/upbranch/workspace/runtime.ts");
+  const original = generateProject(DEFAULT_BRIEF);
+  const edited = applyEditedFiles(original, [{ path: "index.html", content: '<h1>Changed</h1><p>students and families</p><article class="card">fictional</article><article class="card">sample</article><article class="card">example</article><style>@media (max-width: 600px) { .cards { grid-template-columns: 1fr; } }</style>' }]);
+  assert.match(edited.previewHtml, /Changed/);
+  assert.equal(inspectProject(edited).every((check) => check.passed), true);
+  const missing = applyEditedFiles(edited, [{ path: "index.html", content: "<p>Empty</p>" }]);
+  assert.equal(inspectProject(missing).every((check) => !check.passed), true);
+  assert.throws(() => applyEditedFiles(original, [{ path: "index.html", content: "x".repeat(40961) }]));
+  assert.throws(() => applyEditedFiles(original, [{ path: "index.html", content: "" }, { path: "other", content: "" }]));
+  assert.throws(() => applyEditedFiles(original, [{ path: "index.html", content: "" }, { path: "index.html", content: "" }]));
+  assert.throws(() => applyEditedFiles(original, [{ path: "brief.txt", content: "" }]));
+});
+
+test("preview removes navigation and active markup behind a first CSP", async () => {
+  const { applyEditedFiles } = await import("../../lib/upbranch/workspace/runtime.ts");
+  const html = '<meta http-equiv=refresh content="0;url=https://evil.test"><base href=https://evil.test><a href=https://evil.test onclick=alert(1)>link</a><form action=https://evil.test><button>go</button></form><svg><a href=https://evil.test><animate attributeName=href values=https://evil.test /></a></svg><script>alert(1)</script><iframe src=https://evil.test></iframe><style>@import url(https://evil.test/x);</style>';
+  const result = applyEditedFiles(generateProject(DEFAULT_BRIEF), [{ path: "index.html", content: html }]);
+  assert.match(result.previewHtml, /^<!doctype html><html><head><meta http-equiv="Content-Security-Policy"/);
+  assert.match(result.previewHtml, /default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'/);
+  assert.doesNotMatch(result.previewHtml, /<base|refresh|<script|<iframe|<svg|<animate|<form|\shref\s*=|\saction\s*=|onclick/i);
+});
