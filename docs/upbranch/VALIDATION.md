@@ -61,6 +61,12 @@ The subsequent user-directed design pass added an original, contained ASCII cano
 
 The first cloud install exposed ten inherited dependency advisories. Independent review identified applicable App Router/Server Actions denial of service in Next 15.5.19 ([GHSA-p3m5-59mp-jv5r](https://github.com/advisories/GHSA-p3m5-59mp-jv5r)), along with conditional image and platform issues. Next and eslint-config-next were pinned to 15.5.28. Ordinary `npm audit fix`, without `--force`, patched compatible transitive versions, including sharp 0.35.5 and PostCSS 8.5.32. The resulting audit is zero, and TypeScript, lint, all 132 security checks and all seven Upbranch groups (438 paths) passed again. The final cloud build and hosting result are recorded separately.
 
+## Production release evidence
+
+Product commit `70f881e` built successfully on Vercel with `npm ci` and Next 15.5.28. Deployment `dpl_DK4vHmS7mrdpb3G6qYLaAPHqMVTF` was READY and promoted on October 26, 2026 to https://upbranch.vercel.app, under the user's own Vercel project. Source is https://github.com/iecclodd/upbranch. The production domain is publicly accessible without a Vercel login; deployment URL protection was preserved.
+
+Independent `node --experimental-strip-types work/smoke-production.mjs` checked all 21 public production routes: HTTP 200, no redirects, correct Upbranch/main-content markers. `/learn/does-not-exist` returned 404. Curated Radar and unpaid project labels were confirmed in hosted HTML. In the production browser, the parent completed the first-agent mission at 18/18 and refreshed to confirm saved debrief persistence. `outputs/screenshots/live-home.png` and `live-mission-complete.png` record the live UI. Later documentation-only commits do not change the deployed product code.
+
 ## Remaining limits
 
 The shipped activities are authored simulations, not live AI. Studio execution, remote Worktree handoff, automatic paper ingestion, server-synced accounts and validated adaptive learning are future scope. Real sign-in/billing/provider integration was not exercised. No production database writes, security permission changes, real runner invocation, video portal upload or contest submission occurred. Deployment status must be recorded separately; local build success does not prove a hosted deployment or submission acceptance.

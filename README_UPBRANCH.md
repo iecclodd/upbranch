@@ -2,6 +2,8 @@
 
 Learn AI. Build what's next.
 
+Live: https://upbranch.vercel.app · Source: https://github.com/iecclodd/upbranch. The anonymous learning release is deployed independently; real account, billing and provider integrations are not configured.
+
 Upbranch adds a public AI literacy experience to the existing PolyShield application. Anonymous learners can complete branching, authored simulations, explore three learning paths, browse ten educational project briefs, and inspect five source-linked research cards.
 
 ## Run locally
