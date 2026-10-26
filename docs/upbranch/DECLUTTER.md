@@ -36,5 +36,7 @@ Writers used separate Git worktrees with disjoint ownership and stopped after th
 - Independent local HTTP smoke: 30 routes returned 200 without redirects; unknown course/learn/labs routes returned 404.
 - Local browser: build, failed checks, repair, all checks passing, source diff, protected-data denial, publishing approval, completion and revocation on a new run passed. Contextual navigation does not grant permissions or completion. Independent source review found no P1/P2 issue.
 - Local browser: article/source disclosures, quiz grading 3/3 and persisted completion survived the presentation changes. At 348px viewport width, workspace tabs fit and the document had no horizontal overflow. Exact 375px and assistive-technology audits were not performed.
+- Public browser: the simplified course resumed at 1/6, its cited IBM player loaded, and the workspace completed generation, 2/5 checks, repair, 5/5 checks, protected denial, contextual publishing review and separate approval. A final presentation-only follow-up removed a duplicate Instructions heading; typecheck and lint passed again.
+- Independent public HTTP smoke passed all 30 routes without redirects, missing lesson/mission IDs returned 404, and video-frame CSP remained intact. No catalog, state, policy or runtime logic changed in the final heading follow-up.
 
 Production build, promotion and final public verification are recorded in `RELEASE_HANDOFF.md`. Original kit coverage limits remain in `KIT_COVERAGE.md`; this cleanup does not implement deferred backend or general agent execution.

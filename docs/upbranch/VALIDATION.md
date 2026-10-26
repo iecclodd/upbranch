@@ -71,4 +71,6 @@ Independent `node --experimental-strip-types work/smoke-production.mjs` checked 
 
 ## Remaining limits
 
+Subsequent workspace, course and interface-cleanup releases are documented in `WORKSPACE_UPGRADE.md`, `COURSE_SOURCES.md`, `DECLUTTER.md` and the current `RELEASE_HANDOFF.md`. The production evidence above records the earlier branching-only release.
+
 The shipped activities are authored simulations, not live AI. Studio execution, remote Worktree handoff, automatic paper ingestion, server-synced accounts and validated adaptive learning are future scope. Real sign-in/billing/provider integration was not exercised. No production database writes, security permission changes, real runner invocation, video portal upload or contest submission occurred. Deployment status must be recorded separately; local build success does not prove a hosted deployment or submission acceptance.

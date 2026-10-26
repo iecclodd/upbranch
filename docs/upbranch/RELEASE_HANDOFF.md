@@ -6,8 +6,8 @@
 - Course: https://upbranch.vercel.app/learn
 - Hands-on mission: https://upbranch.vercel.app/learn/first-agent
 - Repository: https://github.com/iecclodd/upbranch
-- Tested/deployed product commit: 51284813c573a0fb199014b2492adf85a9f37f60
-- Production deployment: dpl_FvMn8aEnJuzGJVY3Fg9cvZcmQet9, READY and promoted in the user's own Vercel project.
+- Tested/deployed product commit: d79b6fd47462f31b82f79c8834422788759d7232
+- Production deployment: dpl_AaWK5hkCoRj2nN43ZidUGo5VHp1b, READY and promoted in the user's own Vercel project.
 - Editable checkout: C:\Users\azaan\Documents\Codex\2026-10-26\do-th\outputs\upbranch
 - Local development: http://127.0.0.1:3000
 
@@ -27,9 +27,13 @@ Preserve unrelated edits and inspect `git status` first. Do not modify existing 
 
 ## Verification
 
+The current interface cleanup removes repeated copy, competing sections and duplicate controls. Optional sources, progress explanations, filters, technical details and passing checks expand on demand. The workspace leads with its preview and supplies contextual review actions. See `DECLUTTER.md` for changed surfaces, ownership, requested agent routes and evidence. No dependency, catalog, progress schema or policy runtime changed in this cleanup.
+
 Typecheck, lint, fifteen Upbranch groups (including four new course groups and four workspace groups), 438 legacy authored paths, and all 132 security checks passed. Final cloud production build was READY; independent public HTTP smoke passed all thirty routes with no redirects, and unknown course/learn/labs routes returned 404. The actual production CSP permits only self and the YouTube privacy-enhanced embed domain for frames.
 
 Browser checks covered first-agent generation, failed checks, edited brief and actual source/rendered changes, targeted repair, protected Allow resolving to Deny, separate mock approval, completion revocation after changed evidence, and next-project handoff. Course checks covered publisher player loading, brief IBM model-video playback, original article/citations, quiz scoring 2/3 then retry 3/3, completion 1/6 (17%), refresh persistence and next-incomplete resume. All three cited players loaded locally; complete video playback in every region/browser is not claimed.
+
+The simplified release was checked locally through repair, denial, approval and revocation, and publicly through generation, 2/5 checks, repair, 5/5 checks, contextual permission/publishing review, separate approval, saved course resume and publisher player loading. After the final duplicate-heading removal, the cloud build was READY, the staged workspace returned 200, public browser generation and the single visible Instructions label passed, and the full thirty-route public smoke passed again. The final production screenshots are `outputs/screenshots/clean-*.png`.
 
 Reproduce with Node 24 and the existing lockfile:
 
@@ -50,4 +54,4 @@ See `KIT_COVERAGE.md` for the original R0/R1/R2 requirement comparison; the enti
 
 Use the current production build for the user's own recording. The old screenshot walkthrough predates workspace/course changes. `EDIT_AND_RECORD.txt` beside the checkout gives edit paths and a current sequence. No contest submission or acceptance has occurred.
 
-Team routes and evidence are in `VALIDATION.md`, `WORKSPACE_UPGRADE.md` and `COURSE_SOURCES.md`. Requested Luna/Terra/Sol routing is documented; effective routing was not independently observable.
+Team routes and evidence are in `VALIDATION.md`, `WORKSPACE_UPGRADE.md`, `COURSE_SOURCES.md` and `DECLUTTER.md`. Requested Luna/Terra/Sol routing is documented; effective routing was not independently observable.
