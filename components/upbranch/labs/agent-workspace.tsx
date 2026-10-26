@@ -233,9 +233,6 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
       <div className={styles.main}>
         <div className={styles.left}>
           <section className={styles.briefCard}>
-            <div className={styles.sectionHeading}>
-              <h3>Instructions</h3>
-            </div>
             <label htmlFor="agent-brief" className={styles.label}>
               Instructions
             </label>
