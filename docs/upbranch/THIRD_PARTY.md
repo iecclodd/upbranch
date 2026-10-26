@@ -14,3 +14,5 @@ This is a release preparation record, not a complete third-party license invento
 The Upbranch build used AI coding assistance through Codex, including parallel implementation and QA assistance. Human contributors should identify their own actual roles and review the final wording against the relevant competition rules. No video recording or portal submission is implied by this note.
 
 The kit evaluates Sandpack, WebContainers and other candidates; their appearance in planning material does not mean they were installed or shipped. If adopted later, review the actual versions, licenses, separate execution-service terms, privacy, CSP and network behavior before release.
+
+The original hero ASCII canopy takes visual inspiration from the organic character motion on https://www.daoho.dev. Its glyph field, shapes and animation implementation were authored for Upbranch; no source code, fish artwork or other assets were copied. The accent has pause/resume, reduced-motion and offscreen behavior.

@@ -65,5 +65,5 @@ export function AsciiGarden() {
     return () => { window.clearInterval(timer); observer.disconnect(); resizeObserver.disconnect(); };
   }, [paused, reducedMotion]);
 
-  return <><canvas ref={canvasRef} className="ub-ascii-garden" aria-hidden="true" /><button className="ub-motion-control" type="button" onClick={() => { if (reducedMotion) setReducedMotion(false); else setPaused(!paused); }} aria-label={`${paused || reducedMotion ? "Resume" : "Pause"} decorative canopy motion`}>{paused || reducedMotion ? "▶ Resume motion" : "Ⅱ Pause motion"}</button></>;
+  return <><canvas ref={canvasRef} className="ub-ascii-garden" aria-hidden="true" /><button className="ub-motion-control" type="button" onClick={() => { const resume = paused || reducedMotion; setPaused(!resume); if (resume) setReducedMotion(false); }} aria-label={`${paused || reducedMotion ? "Resume" : "Pause"} decorative canopy motion`}>{paused || reducedMotion ? "▶ Resume motion" : "Ⅱ Pause motion"}</button></>;
 }

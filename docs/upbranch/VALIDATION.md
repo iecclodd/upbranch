@@ -56,6 +56,8 @@ Ten agents contributed across independent scopes. All feature writers used isola
 
 Effective child routing was not exposed in authoritative runtime results and remains unverified. The review found the link-reset specificity issue and missing skip-link targets; both were corrected and independently rechecked. Keyed players prevent cross-mission state reuse; reset/back now consistently remove the current mission's completion flag. No new review blockers remained.
 
+The subsequent user-directed design pass added an original, contained ASCII canopy to the hero. TypeScript, lint and diff checks passed; browser checks observed the glyph field and confirmed Pause/Resume. Independent QA reviewed the bounded drawing, SSR-safe effects, reduced-motion handling and observer/timer cleanup. The small combined pause/reduced-motion resume edge case was corrected. Source and hosting were moved to the user's independent `iecclodd/upbranch` repository and own Vercel project; the prior Arya-host deployment is outside the current release target.
+
 ## Remaining limits
 
 The shipped activities are authored simulations, not live AI. Studio execution, remote Worktree handoff, automatic paper ingestion, server-synced accounts and validated adaptive learning are future scope. Real sign-in/billing/provider integration was not exercised. No production database writes, security permission changes, real runner invocation, video portal upload or contest submission occurred. Deployment status must be recorded separately; local build success does not prove a hosted deployment or submission acceptance.
