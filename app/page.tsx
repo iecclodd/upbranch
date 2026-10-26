@@ -1,26 +1,56 @@
 import Link from "next/link";
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { SupervisionPreview } from "@/components/upbranch/marketing/supervision-preview";
 import { AsciiGarden } from "@/components/upbranch/marketing/ascii-garden";
 import { SiteShell } from "@/components/upbranch/ui/site-shell";
 
-const problems = [
-  ["01", "Check the work against the task.", "A finished-looking page can still be missing a requirement. Compare the result with what you asked for."],
-  ["02", "Test beyond the first impression.", "A page that looks good on a laptop might break on a phone. Inspect the places a quick glance misses."],
-  ["03", "Keep access proportional.", "A school events page does not need student records. Decide what an agent actually needs to do its job."],
-];
-
 export default function Home() {
-  return <SiteShell><main id="main-content" tabIndex={-1}>
-    <section className="ub-hero ub-wrap"><div className="ub-hero-copy"><div className="ub-eyebrow"><span className="ub-status-dot" /> A LITTLE MORE HUMAN IN THE LOOP</div><h1>It looks right.<br /><em>Can you trust it?</em></h1><p>AI can build a website in moments. It still takes your judgment to spot what it missed, test what it made, and decide what it can access.</p><div className="ub-actions"><Link className="ub-button ub-button-dark" href="/learn/first-agent">Try your first mission <ArrowUpRight size={17} /></Link><Link className="ub-text-link" href="/discover">Explore projects <ArrowRight size={17} /></Link></div><div className="ub-hero-note"><span className="ub-note-icon">✳</span><span>For curious minds and future builders.<br /><strong>Start wherever you are.</strong></span></div></div>
-      <div className="ub-visual" aria-label="Illustration of ideas branching into learning, practice, and building"><div className="ub-visual-top"><span>THE UPBRANCH APPROACH</span><span>FIG. 01 / GROWTH</span></div><AsciiGarden /><div className="ub-orbit ub-orbit-one"/><div className="ub-orbit ub-orbit-two"/><div className="ub-orbit ub-orbit-three"/><svg className="ub-tree" viewBox="0 0 400 420" fill="none" aria-hidden="true"><path d="M200 363V247M200 288C200 219 147 231 147 170M200 253C200 194 263 214 263 151M147 198C147 161 112 160 112 126M263 185C263 147 298 142 298 106" stroke="currentColor" strokeWidth="2"/><path d="M200 247C200 201 185 187 179 165" stroke="currentColor" strokeWidth="2"/><circle cx="112" cy="119" r="17" fill="#c8ee91"/><circle cx="147" cy="163" r="25" fill="#86b36e"/><circle cx="179" cy="154" r="14" fill="#e2f4b6"/><circle cx="263" cy="144" r="27" fill="#c8ee91"/><circle cx="298" cy="98" r="18" fill="#83aa73"/><circle cx="200" cy="245" r="7" fill="#f6f5ef" stroke="currentColor" strokeWidth="2"/><path d="M170 363H230" stroke="currentColor" strokeWidth="2"/></svg><div className="ub-visual-tag ub-tag-one"><Sparkles size={14}/> STAY CURIOUS</div><div className="ub-visual-tag ub-tag-two">↗ &nbsp; GROW YOUR SKILLS</div><div className="ub-visual-bottom"><span>GOOD JUDGMENT GROWS HERE</span><span>✳</span></div></div>
-    </section>
-    <div className="ub-marquee"><div className="ub-wrap"><span>UNDERSTAND THE TOOLS</span><span>✳</span><span>ASK BETTER QUESTIONS</span><span>✳</span><span>BUILD WITH PURPOSE</span><span>✳</span><span>KEEP THE HUMAN IN IT</span></div></div>
-    <section className="ub-section ub-wrap"><div className="ub-section-intro"><div className="ub-eyebrow">01 / THE WHY</div><div><h2>More than knowing<br />how to <em>ask.</em></h2><p>AI can put powerful tools in your hands quickly. Learning to supervise their work means checking the result, testing the edges, and setting sensible limits.</p></div><ArrowDownRight className="ub-intro-arrow" size={38} strokeWidth={1}/></div><div className="ub-problem-grid">{problems.map(([n,title,body]) => <article className="ub-problem" key={n}><span className="ub-number">{n} /</span><h3>{title}</h3><p>{body}</p><span className="ub-problem-star">✳</span></article>)}</div></section>
-    <section className="ub-practice"><div className="ub-wrap ub-practice-grid"><div className="ub-practice-copy"><div className="ub-eyebrow">02 / LEARN BY DOING</div><h2>Make the call.<br /><em>See what happens.</em></h2><p>Start with a school events page. Inspect the example, compare it with the brief, and decide which access the task really needs. Then try a guided mission.</p><Link className="ub-button ub-button-lime" href="/learn/first-agent">Try the first mission <ArrowUpRight size={17}/></Link><div className="ub-practice-note">NO SIGN-IN NEEDED <span>·</span> BUILT FOR BEGINNERS</div></div><SupervisionPreview /></div></section>
-    <section className="ub-section ub-wrap"><div className="ub-section-intro ub-path-intro"><div className="ub-eyebrow">03 / YOUR NEXT STEP</div><div><h2>Follow your <em>curiosity.</em></h2><p>Start with the foundations, explore how agents work, or find a problem you care about. There&apos;s room to make your own path.</p></div><Link className="ub-circle-link" href="/paths" aria-label="Explore learning paths"><ArrowUpRight size={23}/></Link></div><div className="ub-path-grid"><Link className="ub-path-card ub-path-light" href="/learn"><span>01 / UNDERSTAND</span><div className="ub-path-symbol">✳</div><h3>Learn the essentials.</h3><p>Build a practical foundation for thinking and working with AI.</p><span className="ub-card-link">Explore lessons <ArrowUpRight size={16}/></span></Link><Link className="ub-path-card ub-path-green" href="/paths"><span>02 / PRACTICE</span><div className="ub-path-symbol">⌘</div><h3>Find your path.</h3><p>Grow your skills through guided learning and thoughtful decisions.</p><span className="ub-card-link">Explore paths <ArrowUpRight size={16}/></span></Link><Link className="ub-path-card ub-path-dark" href="/discover"><span>03 / BUILD</span><div className="ub-path-symbol">↗</div><h3>Make something matter.</h3><p>Find an educational project idea and turn curiosity into action.</p><span className="ub-card-link">Discover projects <ArrowUpRight size={16}/></span></Link></div></section>
-    <section className="ub-projects ub-wrap"><div className="ub-projects-heading"><div><div className="ub-eyebrow">04 / IDEAS INTO ACTION</div><h2>Find a problem <em>worth exploring.</em></h2><p>These are educational project ideas, each with a starting point and resources to help you build thoughtfully.</p></div><Link className="ub-text-link" href="/discover">All project ideas <ArrowRight size={17}/></Link></div><div className="ub-project-grid"><Link href="/discover/air-quality-explainer" className="ub-project-card"><span>ENVIRONMENT / DATA</span><h3>Make air quality easier to understand.</h3><p>Explore public data and explain what it means for a community.</p><span className="ub-project-arrow" aria-hidden="true">↗</span></Link><Link href="/discover/paper-research-explorer" className="ub-project-card"><span>RESEARCH / LITERACY</span><h3>Make research more approachable.</h3><p>Build a paper explainer and practice tracing claims to sources.</p><span className="ub-project-arrow" aria-hidden="true">↗</span></Link><Link href="/discover/accessible-event-planner" className="ub-project-card"><span>ACCESSIBILITY / COMMUNITY</span><h3>Make school events easier to navigate.</h3><p>Design an accessible event experience using fictional details.</p><span className="ub-project-arrow" aria-hidden="true">↗</span></Link></div></section>
-    <section className="ub-radar ub-wrap"><div><div className="ub-eyebrow">05 / RESEARCH RADAR</div><h2>Stay curious. <em>Stay grounded.</em></h2><p>Explore a dated, curated edition of AI research and updates, with links to original sources and context for what they mean.</p></div><Link href="/radar" className="ub-button ub-button-dark">Explore the radar <ArrowUpRight size={17}/></Link></section>
-    <section className="ub-final ub-wrap"><div><div className="ub-eyebrow">A GOOD PLACE TO BEGIN</div><h2>The future is a<br /><em>work in progress.</em></h2><p>So are we. Let&apos;s learn what&apos;s possible, together.</p><Link className="ub-button ub-button-dark" href="/learn/first-agent">Try your first mission <ArrowUpRight size={17}/></Link></div><div className="ub-final-mark" aria-hidden="true">✳</div></section>
-  </main></SiteShell>;
+  return (
+    <SiteShell>
+      <main id="main-content" tabIndex={-1}>
+        <section className="ub-hero ub-wrap">
+          <div className="ub-hero-copy">
+            <h1>It looks right.<br /><em>Can you trust it?</em></h1>
+            <p>Practice checking AI-generated work, testing what it made, and deciding what it can access.</p>
+            <div className="ub-actions">
+              <Link className="ub-button ub-button-dark" href="/learn/first-agent">Try your first mission <ArrowUpRight size={17} aria-hidden="true" /></Link>
+              <Link className="ub-text-link" href="/learn">Explore lessons <ArrowRight size={17} aria-hidden="true" /></Link>
+            </div>
+          </div>
+          <div className="ub-visual">
+            <AsciiGarden />
+            <div className="ub-orbit ub-orbit-one" />
+            <div className="ub-orbit ub-orbit-two" />
+            <div className="ub-orbit ub-orbit-three" />
+            <svg className="ub-tree" viewBox="0 0 400 420" fill="none" aria-hidden="true">
+              <path d="M200 363V247M200 288C200 219 147 231 147 170M200 253C200 194 263 214 263 151M147 198C147 161 112 160 112 126M263 185C263 147 298 142 298 106" stroke="currentColor" strokeWidth="2" />
+              <path d="M200 247C200 201 185 187 179 165" stroke="currentColor" strokeWidth="2" />
+              <circle cx="112" cy="119" r="17" fill="#c8ee91" /><circle cx="147" cy="163" r="25" fill="#86b36e" /><circle cx="179" cy="154" r="14" fill="#e2f4b6" /><circle cx="263" cy="144" r="27" fill="#c8ee91" /><circle cx="298" cy="98" r="18" fill="#83aa73" /><circle cx="200" cy="245" r="7" fill="#f6f5ef" stroke="currentColor" strokeWidth="2" /><path d="M170 363H230" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          </div>
+        </section>
+        <section className="ub-practice">
+          <div className="ub-wrap ub-practice-grid">
+            <div className="ub-practice-copy">
+              <h2>Look closer.<br /><em>Make the call.</em></h2>
+              <p>Inspect a fictional school events page and decide what needs attention.</p>
+              <Link className="ub-text-link" href="/learn/first-agent">Continue to the mission <ArrowRight size={17} aria-hidden="true" /></Link>
+            </div>
+            <SupervisionPreview />
+          </div>
+        </section>
+        <section className="ub-projects ub-wrap">
+          <div className="ub-projects-heading">
+            <h2>Explore a <em>project.</em></h2>
+            <Link className="ub-text-link" href="/discover">All projects <ArrowRight size={17} aria-hidden="true" /></Link>
+          </div>
+          <div className="ub-project-grid">
+            <Link href="/discover/air-quality-explainer" className="ub-project-card"><h3>Make air quality easier to understand.</h3><p>Explore public data and explain what it means for a community.</p><span className="ub-project-arrow" aria-hidden="true">↗</span></Link>
+            <Link href="/discover/paper-research-explorer" className="ub-project-card"><h3>Make research more approachable.</h3><p>Build a paper explainer and practice tracing claims to sources.</p><span className="ub-project-arrow" aria-hidden="true">↗</span></Link>
+            <Link href="/discover/accessible-event-planner" className="ub-project-card"><h3>Make school events easier to navigate.</h3><p>Design an accessible event experience using fictional details.</p><span className="ub-project-arrow" aria-hidden="true">↗</span></Link>
+          </div>
+        </section>
+      </main>
+    </SiteShell>
+  );
 }
