@@ -7,8 +7,8 @@
 - Guided labs: https://upbranch.vercel.app/labs
 - Hands-on mission: https://upbranch.vercel.app/learn/first-agent
 - Repository: https://github.com/iecclodd/upbranch
-- Tested/deployed product commit: ad2ba9dfaf40f99d643e93ffbae8f0a7cd373025
-- Production deployment: dpl_DkDvVMT8uozY9ggaVuoJLJR3ZgWC, READY and promoted in the user's own Vercel project.
+- Tested/deployed product commit: fdfb13fc0fba7fe6a384b9a13c2d4fbdef5bdf89
+- Production deployment: dpl_65SzF8PFtrDGtkMeaz5DVjsF1Zgu, READY and promoted in the user's own Vercel project.
 - Editable checkout: C:\Users\azaan\Documents\Codex\2026-10-26\do-th\outputs\upbranch
 - Local development: http://127.0.0.1:3000
 
@@ -27,6 +27,10 @@ Later documentation-only commits do not alter the deployed product. The user can
 Preserve unrelated edits and inspect `git status` first. Do not modify existing dashboard/auth/gateway/migrations as part of learner changes.
 
 ## Verification
+
+The current color pass adds a dark CodeMirror editor with HTML/CSS syntax colors and stable Files/Preview/Checks/Permissions accents. Typecheck, lint, 20 learning groups, 132 security checks, dependency audit and independent source review passed. The cloud build was READY and promoted; independent public smoke passed 30 routes, three unknown IDs returned 404, and all four workspace view markers were present. In the public browser, edited HTML/CSS ran through Ctrl+Enter, rendered the custom page and passed 5/5 checks. Local checks also covered Undo/Redo, file-switch retention and rejected oversized UTF-8 edits. See `EDITOR_COLOR.md` for ownership, requested routing, palette checks and limits. `outputs/screenshots/colored-ide.png` shows the current public editor.
+
+Earlier releases established the following behavior and regression evidence:
 
 The latest fix replaces the read-only Files source viewer with an editable static HTML/CSS workbench. Files → Source edits index.html/brief.txt; Run preview and Ctrl/Cmd+Enter render the edited page. Checks inspect the canonical rendered preview and draft edits immediately revoke evidence. The prior layout alone was not an editable IDE. See `EDITOR_FIX.md` for root cause, implementation, safety boundaries, ownership and review evidence.
 

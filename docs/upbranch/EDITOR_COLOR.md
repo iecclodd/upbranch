@@ -15,11 +15,14 @@ Workspace channels have stable accents: Files blue, Preview teal, Checks amber a
 
 Read-only scout requested Luna Low mapped the editor safeguards and contrast gaps. The isolated editor writer requested Terra Medium owned the component and textarea replacement. Parent owned dependencies, panel CSS, integration and browser validation. Independent reviewer requested Sol High checked controlled drafts, shortcut freshness, limits, state-based color attributes and unchanged sandboxing. Effective model/effort routing was not independently observable. No grandchildren were used.
 
+Independent HTTP QA requested Terra High owned public-route, content-marker and response-policy smoke checks. All required agents completed before release completion.
+
 ## Evidence
 
 - Typecheck, lint, 20 learning groups (438 legacy paths), 132 security checks and diff check passed. Installation audit and production dependency audit reported zero vulnerabilities.
 - Independent review returned GO with no P1/P2 findings. Parent then stabilized callback/setup identities to avoid unnecessary editor reconfiguration.
 - Local browser verified real editing, Undo (Ctrl+Z), Redo (Ctrl+Y), draft retention across file switches, Ctrl+Enter preview and 5/5 checks. Oversized ASCII and UTF-8 edits were rejected without replacing the valid document. The policy result's color matched its real Deny result.
 - DOM inspection found six distinct syntax-token colors in addition to source text; the 1280px viewport had no document overflow. Fourteen targeted foreground/background pairs were calculated, with minimum contrast 5.07:1. This is a targeted palette check, not a full accessibility audit. A fresh narrow-viewport/assistive-technology audit was not performed.
+- Product commit `fdfb13fc0fba7fe6a384b9a13c2d4fbdef5bdf89` built READY and was promoted as deployment `dpl_65SzF8PFtrDGtkMeaz5DVjsF1Zgu`. Independent public HTTP smoke passed 30 routes without redirects, three unknown IDs returned 404, and all four workspace view markers were present. Parent production-browser verification edited HTML/CSS, ran Ctrl+Enter, rendered the custom page and passed 5/5 checks. `outputs/screenshots/colored-ide.png` records the public source view.
 
 Cloud deployment and final public verification are recorded in `RELEASE_HANDOFF.md`. Static HTML/CSS preview limits remain unchanged; syntax coloring does not add JavaScript/Python execution or cloud draft saving.
