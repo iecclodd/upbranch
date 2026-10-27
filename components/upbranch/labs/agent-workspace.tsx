@@ -29,6 +29,7 @@ import {
   type WorkspaceProject,
 } from "@/lib/upbranch/workspace/runtime";
 import { getLabGuide } from "@/lib/upbranch/labs/guides";
+import { CodeEditor } from "./code-editor";
 import styles from "./agent-workspace.module.css";
 
 type Props = {
@@ -598,13 +599,11 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                     </div>
                     {currentFile ? (
                       fileView === "source" ? (
-                        <textarea
-                          className={styles.sourceEditor}
-                          aria-label={`Edit ${currentFile.path}`}
+                        <CodeEditor
+                          key={currentFile.path}
+                          path={currentFile.path}
                           value={currentFile.content}
-                          maxLength={40000}
-                          onChange={(event) => {
-                            const content = event.target.value;
+                          onChange={(content) => {
                             invalidateArtifactReview();
                             setEditorError(null);
                             setDraftFiles((files) =>
@@ -615,15 +614,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                               ),
                             );
                           }}
-                          onKeyDown={(event) => {
-                            if (
-                              (event.ctrlKey || event.metaKey) &&
-                              event.key === "Enter"
-                            ) {
-                              event.preventDefault();
-                              runPreview();
-                            }
-                          }}
+                          onRun={runPreview}
                         />
                       ) : (
                         <div className={styles.diff}>
