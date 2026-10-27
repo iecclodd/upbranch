@@ -70,3 +70,15 @@ test("preview removes navigation and active markup behind a first CSP", async ()
   assert.match(result.previewHtml, /default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'/);
   assert.doesNotMatch(result.previewHtml, /<base|refresh|<script|<iframe|<svg|<animate|<form|\shref\s*=|\saction\s*=|onclick/i);
 });
+
+test("discarded markup cannot earn passing checks and doctype is not rendered as text", async () => {
+  const { applyEditedFiles } = await import("../../lib/upbranch/workspace/runtime.ts");
+  const original = generateProject("Title: Club\nAudience: students\nInclude three cards with fictional data and a mobile layout.");
+  for (const tag of ["noscript", "svg", "template"]) {
+    const edited = applyEditedFiles(original, [{ path: "index.html", content: `<${tag}>${original.files[0].content}</${tag}>` }]);
+    assert.ok(inspectProject(edited).every(check => !check.passed), tag);
+  }
+  const edited = applyEditedFiles(original, original.files);
+  assert.doesNotMatch(edited.previewHtml, /&lt;!doctype/i);
+  assert.ok(inspectProject(edited).every(check => check.passed));
+});

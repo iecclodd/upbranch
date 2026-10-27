@@ -31,11 +31,11 @@ export const labGuides: LabGuide[] = [
       {
         id: "build",
         title: "Build a first draft",
-        task: "Run the starter brief. Compare the preview with the requested school club site.",
-        steps: ["Read the starter brief, then choose Run agent.", "Open Preview, then inspect index.html in Files."],
+        task: "Generate starter files, then edit and run the page in Files.",
+        steps: ["Choose Generate from brief, or open Files and create starter files.", "Edit index.html in Source, then choose Run preview."],
         reference: [
           { title: "Brief format", body: "Title: names the website. Audience: names its readers. Put the required sections and behavior on the following lines.", example: "Title: School Garden Club\nAudience: students and families\nInclude an introduction and a contact button." },
-          { title: "Run and inspect", body: "Run generates static fictional files from supported phrases. Preview renders index.html in an isolated frame. Files shows the generated source; Changes compares it with the first run. Draft files stay in this tab; only lab completion is saved in this browser." },
+          { title: "Edit and run files", body: "Files → Source is an editable HTML/CSS editor. Run preview applies the edited files and renders index.html; Ctrl/Cmd+Enter also runs it. Changes compares source with the first build. Only a static subset of HTML/CSS is rendered: scripts, external requests, images and links are blocked. Drafts stay in this tab; only completion is saved locally." },
           { title: "Supported requirements", body: "The simulator recognizes intro/about, contact, services, testimonials, three cards, mobile/responsive, and sample/example/fictional data. Other requests may be ignored. This is a rule-based exercise, not a live model." },
         ],
         hint: "The first draft intentionally leaves out three requirements. Running it creates a draft; it does not prove the draft is complete.",
@@ -44,10 +44,11 @@ export const labGuides: LabGuide[] = [
         id: "test",
         title: "Test and improve",
         task: "Make the page include three cards, a mobile layout and fictional sample data. Pass all five checks.",
-        steps: ["Open Checks and run the checks.", "Edit the brief to address each failed requirement, then run it again.", "Inspect the new preview and Changes; rerun the checks."],
+        steps: ["Open Checks and run the checks.", "Edit index.html in Files, then choose Run preview. You can also regenerate from a refined brief.", "Inspect the new preview and Changes; rerun the checks."],
         reference: [
-          { title: "Run versus Check", body: "Run changes the generated files. Run checks inspects the current generated files. A changed brief has no effect until you run it; every new build clears the previous checks and approvals." },
+          { title: "Generate, Run and Check", body: "Generate from brief replaces the files using the supported brief phrases. Files → Run preview renders your edited HTML/CSS instead. Run checks inspects that rendered output. Edits immediately clear previous checks and approvals; run the draft before checking." },
           { title: "Acceptance criteria", body: "The five checks look for a title, an audience, exactly three cards, responsive CSS and fictional sample data. They are literal content/CSS checks, not automated browser or accessibility tests.", example: "Include three cards.\nUse a mobile layout.\nInclude fictional sample data." },
+          { title: "HTML and CSS example", body: "Add three article.card elements to the page and a narrow-screen CSS rule. Keep the intended audience visible in the page text.", example: '<style>.cards{display:grid;grid-template-columns:repeat(3,1fr)}\n@media(max-width:600px){.cards{grid-template-columns:1fr}}</style>\n<div class="cards">\n  <article class="card">Fictional seed swap</article>\n  <article class="card">Fictional workshop</article>\n  <article class="card">Fictional harvest</article>\n</div>' },
           { title: "Inspect both views", body: "Desktop and Mobile change the preview width. Check text wrapping and card layout yourself; a passing literal check cannot establish every visual detail." },
         ],
         hint: "Add explicit requests for three cards, a mobile layout and fictional sample data. Run again before checking. Use the optional repair only after inspecting what failed.",

@@ -92,7 +92,7 @@ function staticPreview(html: string): string {
   let output = "";
   let blocked = "";
   for (const token of tokens) {
-    if (token.startsWith("<!--")) continue;
+    if (token.startsWith("<!--") || /^<!doctype\b/i.test(token)) continue;
     const tag = token.match(/^<\s*(\/?)\s*([a-zA-Z][\w-]*)\b([\s\S]*?)>$/);
     if (!tag) { if (!blocked) output += token.replace(/</g, "&lt;"); continue; }
     const closing = !!tag[1];
@@ -123,7 +123,7 @@ export function applyEditedFiles(project: WorkspaceProject, files: { path: strin
 }
 
 export function inspectProject(project: WorkspaceProject): WorkspaceCheck[] {
-  const html = project.files.find((file) => file.path === "index.html")?.content ?? "";
+  const html = project.previewHtml;
   const clean = html.replace(/<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ").replace(/<!--([\s\S]*?)-->/g, " ");
   const visible = clean.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").toLowerCase();
   const heading = clean.match(/<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/i)?.[1]?.replace(/<[^>]*>/g, "").trim();
