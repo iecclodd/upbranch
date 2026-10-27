@@ -7,8 +7,8 @@
 - Guided labs: https://upbranch.vercel.app/labs
 - Hands-on mission: https://upbranch.vercel.app/learn/first-agent
 - Repository: https://github.com/iecclodd/upbranch
-- Tested/deployed product commit: 2a5cd4b0b922a8f3d35fa5a7965845cd759c3b6a
-- Production deployment: dpl_AE9ihtRSs1YDcLPWZEv5v2Vd7Qiq, READY and promoted in the user's own Vercel project.
+- Tested/deployed product commit: ad2ba9dfaf40f99d643e93ffbae8f0a7cd373025
+- Production deployment: dpl_DkDvVMT8uozY9ggaVuoJLJR3ZgWC, READY and promoted in the user's own Vercel project.
 - Editable checkout: C:\Users\azaan\Documents\Codex\2026-10-26\do-th\outputs\upbranch
 - Local development: http://127.0.0.1:3000
 
@@ -27,6 +27,10 @@ Later documentation-only commits do not alter the deployed product. The user can
 Preserve unrelated edits and inspect `git status` first. Do not modify existing dashboard/auth/gateway/migrations as part of learner changes.
 
 ## Verification
+
+The latest fix replaces the read-only Files source viewer with an editable static HTML/CSS workbench. Files → Source edits index.html/brief.txt; Run preview and Ctrl/Cmd+Enter render the edited page. Checks inspect the canonical rendered preview and draft edits immediately revoke evidence. The prior layout alone was not an editable IDE. See `EDITOR_FIX.md` for root cause, implementation, safety boundaries, ownership and review evidence.
+
+For this fix, typecheck/lint, all 20 learning groups and 132 security checks passed. Independent review found and verified the discarded-markup grading fix. The cloud build was READY and promoted; independent public smoke passed 30 routes with no redirects and unknown IDs returning 404. The public browser created starter files, edited real HTML/CSS, ran via Ctrl+Enter, rendered the custom heading/styles/three cards and passed 5/5 checks. Screenshots `outputs/screenshots/working-file-editor.png` and `working-editor-result.png` record the actual editor and result. No JavaScript/Python/shell/live-AI runtime or cloud draft saving is provided.
 
 The current release reworks all three labs around original CodeHS-inspired Instructions/Docs beside the activity. A validated assignment list resumes the first unfinished lab; the workspace has four evidence-driven checkpoints, contextual reference examples, hints and Back/Next. Both public route aliases share `LabActivity`. See `LAB_SYSTEM.md` for official CodeHS, Codecademy and freeCodeCamp design references, file ownership, requested agent routes, checks and limits.
 
