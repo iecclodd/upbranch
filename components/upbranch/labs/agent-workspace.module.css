@@ -696,17 +696,110 @@
   color: #a13d30;
   font-size: 12px;
 }
-.sourceEditor {
-  display: block;
-  width: 100%;
-  min-height: 360px;
-  resize: vertical;
-  border: 0;
-  padding: 12px;
-  background: #fafbf8;
-  color: var(--ink);
-  font:
-    12px/1.6 ui-monospace,
-    monospace;
-  tab-size: 2;
+/* Each work area keeps its own accent; status always retains text and icons. */
+.workbench {
+  --view-ink: #116d68;
+  --view-fill: #e0f3ef;
+  --view-line: #87c4b9;
+  border-color: var(--view-line);
+}
+.workbench[data-view="files"] {
+  --view-ink: #275eb7;
+  --view-fill: #e7efff;
+  --view-line: #9bb9e8;
+}
+.workbench[data-view="tests"] {
+  --view-ink: #855212;
+  --view-fill: #fff0d4;
+  --view-line: #d9b373;
+}
+.workbench[data-view="policy"] {
+  --view-ink: #6c49a3;
+  --view-fill: #f0e9fc;
+  --view-line: #bba6df;
+}
+.panelTabs {
+  background: #f7f9fc;
+  border-color: var(--view-line);
+  gap: 8px;
+  padding: 5px 12px 0;
+}
+.panelTabs button {
+  border-radius: 7px 7px 0 0;
+  padding: 11px 10px;
+  color: #4e5c71;
+}
+.panelTabs button[aria-pressed="true"] {
+  color: var(--view-ink);
+  background: var(--view-fill);
+  border-bottom-color: var(--view-ink);
+}
+.panelTabs button:hover { background: #e8edf5; }
+.panelTabs button[aria-pressed="true"]:hover { background: var(--view-fill); }
+.panelTabs button[data-view="preview"] { color: #116d68; }
+.panelTabs button[data-view="files"] { color: #275eb7; }
+.panelTabs button[data-view="tests"] { color: #855212; }
+.panelTabs button[data-view="policy"] { color: #6c49a3; }
+.workbench > .briefCard { background: #f5f7fb; }
+.briefCard textarea { background: #fff; border-color: #bdcce0; }
+.workbench[data-view="files"] .resultPanel { background: #eef3fc; }
+.workbench[data-view="preview"] .resultPanel { background: #f3faf8; }
+.workbench[data-view="tests"] .resultPanel { background: #fffbf2; }
+.workbench[data-view="policy"] .resultPanel { background: #faf7ff; }
+.editorGrid {
+  background: #141c2a;
+  border: 1px solid #30425d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.explorer {
+  background: #192333;
+  color: #d7e4f5;
+  border-color: #334158;
+}
+.explorer p, .explorer .folder, .explorer .emptyFiles { color: #aebfd8; }
+.explorer button { color: #d7e4f5; }
+.explorer button.fileActive {
+  background: #2a4163;
+  color: #c5e4ff;
+  box-shadow: inset 3px 0 #78baff;
+}
+.editorTabs { background: #202d42; color: #dce9fb; border-color: #34455e; }
+.editorTabs > span { display: inline-flex; align-items: center; gap: 7px; }
+.editorTabs button { color: #b9c9df; border-radius: 4px; }
+.editorTabs button.activeMini { color: #c5e4ff; background: #34527c; }
+.editorTabs button:hover { background: #2c405d; }
+.editorActions > span { padding: 5px 8px; border-radius: 5px; }
+.editorActions > span[data-dirty="false"] { color: #23634c; background: #ddf2e8; }
+.editorActions > span[data-dirty="true"] { color: #80520b; background: #ffedc6; }
+.editorActions > button { background: #255cb6; border-color: #255cb6; color: white; }
+.editorActions > button:hover { background: #1c488f; }
+.editorGrid :focus-visible { outline-color: #a5ceff; }
+.diff > span { color: #bdcce2; }
+.diff pre { color: #dce5f2; }
+.diff .added { color: #adf1c8; background: #193d35; }
+.diff .removed { color: #ffc8d2; background: #4c2e3b; }
+.browser { border-color: #93bfb7; }
+.browserBar { background: #dcefeb; color: #36675f; }
+.previewControls button[aria-pressed="true"] { background: #d5eee8; color: #155e58; border-color: #81bbae; }
+.checkList { border-color: #e3cda5; }
+.checkRow { background: #fff6e5; border-color: #eed8b2; }
+.checkStatus { color: #855212; font-weight: 700; }
+.checkRow p { color: #735b35; }
+.fail { background: #ffe0a6; color: #7b450b; }
+.checkList + details { margin-top: 12px; padding: 10px; border-radius: 7px; background: #e3f4e9; color: #246044; }
+.policyActions button[data-decision="allow"] { background: #def4e8; color: #236445; border-color: #91c6a8; }
+.policyActions button[data-decision="require_approval"] { background: #fff0d4; color: #805315; border-color: #d8b478; }
+.policyActions button[data-decision="deny"] { background: #fbe6e9; color: #983646; border-color: #dca6b0; }
+.policyResult { border: 1px solid #bca6df; background: #efe8fb; color: #533579; }
+.policyResult[data-decision="deny"] { border-color: #dfa8b1; background: #fceef0; color: #8e3544; }
+.policyResult[data-decision="allow"] { border-color: #9acdb0; background: #e7f5ed; color: #285f44; }
+.policyResult[data-decision="require_approval"] { border-color: #d9bb86; background: #fff4df; color: #79501b; }
+.approval { padding: 10px; border-radius: 6px; background: #ffe9bf; }
+.approval[data-approved="true"] { background: #d9efdf; color: #275b3c; }
+.readingTabs button[aria-pressed="true"] { color: #6c49a3; border-color: #8560b7; }
+@media (max-width: 600px) {
+  .panelTabs { gap: 2px; padding-inline: 6px; }
+  .panelTabs button { padding-inline: 7px; }
+  .editorActions { flex-wrap: wrap; }
 }

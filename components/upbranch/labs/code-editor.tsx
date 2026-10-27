@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { html } from "@codemirror/lang-html";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -15,6 +15,7 @@ const editorTheme = EditorView.theme(
       fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
       lineHeight: "1.6",
       minHeight: "360px",
+      maxHeight: "480px",
       overflow: "auto",
     },
     ".cm-content": { caretColor: "#f4f7ff", padding: "10px 0" },
@@ -45,6 +46,12 @@ const colors = HighlightStyle.define([
   { tag: [tags.keyword, tags.operator], color: "#e6a8d0" },
 ]);
 
+const basicSetup = {
+  lineNumbers: true,
+  highlightActiveLine: true,
+  highlightActiveLineGutter: true,
+};
+
 export function CodeEditor({
   path,
   value,
@@ -57,13 +64,16 @@ export function CodeEditor({
   onRun: () => void;
 }) {
   const runRef = useRef(onRun);
+  const changeRef = useRef(onChange);
   runRef.current = onRun;
+  changeRef.current = onChange;
+  const handleChange = useCallback((content: string) => changeRef.current(content), []);
   const extensions = useMemo(
     () => [
       ...(path.endsWith(".html") ? [html()] : []),
       syntaxHighlighting(colors),
       EditorView.lineWrapping,
-      EditorView.contentAttributes.of({ "aria-label": `Edit ${path}` }),
+      EditorView.contentAttributes.of({ "aria-label": `Edit ${path}`, "aria-live": "off" }),
       EditorState.transactionFilter.of((transaction) => {
         if (!transaction.docChanged) return transaction;
         const doc = transaction.newDoc;
@@ -91,14 +101,10 @@ export function CodeEditor({
     <CodeMirror
       key={path}
       value={value}
-      onChange={onChange}
+      onChange={handleChange}
       extensions={extensions}
       theme={editorTheme}
-      basicSetup={{
-        lineNumbers: true,
-        highlightActiveLine: true,
-        highlightActiveLineGutter: true,
-      }}
+      basicSetup={basicSetup}
     />
   );
 }

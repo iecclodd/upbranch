@@ -450,6 +450,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
 
         <section
           className={styles.workbench}
+          data-view={tab}
           aria-label="Generated project workbench"
         >
           <section className={styles.briefCard}>
@@ -480,18 +481,21 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
           </section>
           <div className={styles.panelTabs} aria-label="Workspace views">
             <button
+              data-view="preview"
               aria-pressed={tab === "preview"}
               onClick={() => setTab("preview")}
             >
               Preview
             </button>
             <button
+              data-view="files"
               aria-pressed={tab === "files"}
               onClick={() => setTab("files")}
             >
               Files
             </button>
             <button
+              data-view="tests"
               aria-pressed={tab === "tests"}
               onClick={() => setTab("tests")}
             >
@@ -503,6 +507,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
               )}
             </button>
             <button
+              data-view="policy"
               aria-pressed={tab === "policy"}
               onClick={() => setTab("policy")}
             >
@@ -515,7 +520,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                 <div className={styles.editorActions}>
                   {project ? (
                     <>
-                      <span>
+                      <span data-dirty={unsaved}>
                         {unsaved ? "Unsaved changes" : "Preview is up to date"}
                       </span>
                       <button
@@ -795,6 +800,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                 <div className={styles.policyActions}>
                   {requestKey !== "publish-project" && (
                     <button
+                      data-decision="allow"
                       disabled={!project || unsaved}
                       onClick={() => decide("allow")}
                     >
@@ -802,12 +808,14 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                     </button>
                   )}
                   <button
+                    data-decision="require_approval"
                     disabled={!project || unsaved}
                     onClick={() => decide("require_approval")}
                   >
                     Require approval
                   </button>
                   <button
+                    data-decision="deny"
                     disabled={!project || unsaved}
                     onClick={() => decide("deny")}
                   >
@@ -825,7 +833,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                   </div>
                 )}
                 {policy && (
-                  <div className={styles.policyResult}>
+                  <div className={styles.policyResult} data-decision={policy.decision}>
                     <strong>
                       Decision: {policy.decision.replaceAll("_", " ")}
                     </strong>
@@ -854,7 +862,7 @@ export function AgentWorkspace({ onComplete, onReset }: Props) {
                       </small>
                     </details>
                     {requestKey === "publish-project" && publishPending && (
-                      <div className={styles.approval}>
+                      <div className={styles.approval} data-approved={publishApproved}>
                         <span>
                           {publishApproved
                             ? "MOCK APPROVED"
